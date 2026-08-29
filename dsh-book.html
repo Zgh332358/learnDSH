@@ -142,6 +142,7 @@
   footer{border-top:1px solid var(--line);padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:9px 18px;font-size:13.5px;transition:.3s;opacity:0;z-index:200;color:var(--text)}
   .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  var{font-family:Georgia,"Songti SC","Noto Serif SC",serif;font-style:italic;font-weight:600;color:#4a3d28}
   .formula{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 56px 16px 20px;margin:14px 0;font-family:Georgia,"Songti SC","Noto Serif SC",serif;font-size:17.5px;text-align:center;position:relative;box-shadow:0 1px 3px rgba(120,95,50,.05);color:#3f3628}
   .formula .eq-no{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--muted);font-family:"PingFang SC",sans-serif}
   .formula var{font-style:italic;font-weight:600;padding:0 1px}
@@ -227,7 +228,7 @@
     <div class="stat"><b>247</b><span>packages/ 下的包</span></div>
     <div class="stat"><b>1691</b><span>agent-loop 源码行数</span></div>
     <div class="stat"><b>52</b><span>个模型可见工具</span></div>
-    <div class="stat"><b>= 4</b><span>CHARS_PER_TOKEN（estimate.ts:13）</span></div>
+    <div class="stat"><b>4 : 1</b><span>CHARS_PER_TOKEN（estimate.ts:13）</span></div>
     <div class="stat"><b>0.x</b><span>版本 · 会有破坏性变更</span></div>
   </div>
   <div class="paths">
@@ -297,10 +298,10 @@
   <div class="formula"><var>r</var><sub><var>n</var></sub> = <var>f</var>(<var>S</var>, <var>m</var><sub>1</sub>, <var>r</var><sub>1</sub>, <var>m</var><sub>2</sub>, <var>r</var><sub>2</sub>, …, <var>m</var><sub><var>n</var></sub>)<span class="eq-no">式 0-1</span></div>
   <table>
     <tr><th>符号</th><th>是什么</th><th>直觉</th></tr>
-    <tr><td><code>f</code></td><td>模型本身</td><td>只会「接一段、续一段」的机器。纯函数：同一份输入进去，不依赖任何外部状态</td></tr>
-    <tr><td><code>S</code></td><td>系统提示</td><td>每次都要重发的开场白：你是谁、能用哪些工具、有什么规矩</td></tr>
-    <tr><td><code>mₖ</code></td><td>第 k 轮用户说的话</td><td>人打的字</td></tr>
-    <tr><td><code>rₖ</code></td><td>第 k 轮模型的回复</td><td>上一次它吐出来的那段文字，下一次要<b>原样带回去</b></td></tr>
+    <tr><td><var>f</var></td><td>模型本身</td><td>只会「接一段、续一段」的机器。纯函数：同一份输入进去，不依赖任何外部状态</td></tr>
+    <tr><td><var>S</var></td><td>系统提示</td><td>每次都要重发的开场白：你是谁、你能用哪些工具、有什么规矩</td></tr>
+    <tr><td><var>m</var><sub><var>k</var></sub></td><td>第 <var>k</var> 轮用户说的话</td><td>人打的字</td></tr>
+    <tr><td><var>r</var><sub><var>k</var></sub></td><td>第 <var>k</var> 轮模型的回复</td><td>上一次它吐出来的那段文字，下一次要<b>原样带回去</b></td></tr>
   </table>
   <p>注意式 0-1 右边的括号：第 n 轮的输入<b>包含前面所有轮的输入和输出</b>。这就是「没有记忆」的精确写法——所谓记忆，是括号里那一长串，而它是<b>你的程序</b>负责保存和重发的。</p>
   <div class="box ana"><span class="tag">打个比方</span>
@@ -328,8 +329,8 @@ const BLOCK_OVERHEAD = 4   // 每个内容块的 JSON 结构开销</code></pre>
   <p>四个字符算一个 token——这是<b>故意粗糙</b>的兜底：一旦提供方返回真实 usage，就改用真实值当锚点。但这条常数对中文是系统性低估（4 个汉字算 1 个 token，实际约 1–2 个汉字就 1 个 token），所以用中文跑 dsh 时压力估计偏乐观。<span style="color:var(--mis)">仓库没有讨论这一点，这是本站读源码时注意到的。</span></p>
   <p>把 0.2 和 0.3 拼起来，得到一个不太好的结论。设每轮新增量约为常数 c，则聊到第 n 轮的累计发送量：</p>
   <div class="formula"><var>T</var>(<var>n</var>) = <span class="sumwrap"><span class="lims"><span class="lim"><var>n</var></span><span class="lim"><var>k</var>=1</span></span><span class="sigma">∑</span></span> <var>k</var>·<var>c</var> &nbsp;=&nbsp; <var>c</var> · <span class="frac"><span class="num"><var>n</var>(<var>n</var>+1)</span><span class="den">2</span></span><span class="eq-no">式 0-2</span></div>
-  <p>关键是 <b>n²</b>：轮数翻一倍，花的钱变四倍。10 轮对话的成本是 1 轮的 55 倍，而不是 10 倍。</p>
-  <div class="box caution"><span class="tag">读的时候要小心 · 本站推导</span>式 0-2 仓库里没有；且假设「每轮新增是常数」，真实工具结果大小差异巨大（读一个大文件可能一次吃掉一半预算），真实曲线比 n² 更不平滑。只用来说明「为什么平方增长」，不能拿去算真实账单。</div>
+  <p>关键是 <b><var>n</var><sup>2</sup></b>：轮数翻一倍，花的钱变四倍。10 轮对话的成本是 1 轮的 55 倍，而不是 10 倍。</p>
+  <div class="box caution"><span class="tag">读的时候要小心 · 本站推导</span>式 0-2 仓库里没有；且假设「每轮新增是常数」，真实工具结果大小差异巨大（读一个大文件可能一次吃掉一半预算），真实曲线比 <var>n</var><sup>2</sup> 更不平滑。只用来说明「为什么平方增长」，不能拿去算真实账单。</div>
 
   <h3 class="sec"><span class="no">0.4</span>工具调用：全站的地基</h3>
   <p>到这里为止，模型还是只会说话。你问「目录里有几个文件」，它只能猜或编；你说「帮我把这行删了」，它回一句「好的，已删除」——文件一个字节都没变。工具调用就是在「模型说的话」和「现实」这堵墙上开的那扇门。</p>
@@ -439,7 +440,7 @@ export class AgentLoop extends Service implements AgentFactory {
     <div class="qn">每步新增 c = 1500 token，整段重发，走完第 20 步的累计发送总量？（式 0-2）</div>
     <div class="row"><input type="number" placeholder="token"><button onclick="grade(this)">提交</button><button class="hint2" onclick="quizHint(this,1)">提示 (0/2)</button><button onclick="quizAns(this)">直接看答案</button></div>
     <div class="verdict"></div>
-    <div class="h2" style="display:none">T(20) = 1500 × 20×21/2 = 315,000。真实新内容只有 30,000——同样的信息付了约 10 倍。</div>
+    <div class="h2" style="display:none">T(20) = 1500 × (20×21÷2) = 1500 × 210 = 315,000。真实新内容只有 30,000——同样的信息付了约 10 倍。</div>
   </div>
   <div class="quiz" data-ans="11" data-tol="0">
     <span class="lv">L1 · 直接应用</span><span style="font-size:12px;color:var(--muted)">数值题</span>
@@ -867,7 +868,7 @@ render();
 /* ---------- machine quiz ---------- */
 const HINTS=[
  '想想 CHARS_PER_TOKEN 是按几个字符算一个 token。',
- 'T(n) = c·n(n+1)/2，先算 20×21/2。',
+ 'T(n) = c·n(n+1)/2，先算 20×21÷2 = 210，再乘 c。',
  '用户消息几条？模型回复要不要也带回去？',
  '四步里只有一步真正碰到磁盘。'];
 const hintUse={};
