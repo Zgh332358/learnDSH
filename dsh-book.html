@@ -142,6 +142,16 @@
   footer{border-top:1px solid var(--line);padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:9px 18px;font-size:13.5px;transition:.3s;opacity:0;z-index:200;color:var(--text)}
   .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .formula{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 56px 16px 20px;margin:14px 0;font-family:Georgia,"Songti SC","Noto Serif SC",serif;font-size:17.5px;text-align:center;position:relative;box-shadow:0 1px 3px rgba(120,95,50,.05);color:#3f3628}
+  .formula .eq-no{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--muted);font-family:"PingFang SC",sans-serif}
+  .formula var{font-style:italic;font-weight:600;padding:0 1px}
+  .sumwrap{display:inline-flex;align-items:center;vertical-align:middle;margin:0 5px}
+  .sumwrap .lims{display:inline-flex;flex-direction:column;justify-content:center;margin-right:3px;line-height:1.15}
+  .sumwrap .lims .lim{font-size:10.5px;font-style:italic}
+  .sumwrap .sigma{font-size:30px;line-height:1;font-weight:400}
+  .frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 4px;line-height:1.25}
+  .frac .num{border-bottom:1.5px solid #6b5b40;padding:0 8px}
+  .frac .den{padding:0 8px}
   .toc{columns:2;column-gap:28px;font-size:13px}
   .toc a{display:block;color:var(--muted);text-decoration:none;padding:2.5px 0}
   .toc a:hover{color:var(--accent)}
@@ -284,7 +294,7 @@
   <h3 class="sec"><span class="no">0.2</span>大语言模型：一个吃文字吐文字的函数，而且它没有记忆</h3>
   <p>把模型当成一个函数：你给它一段文字，它还你一段文字。<b>没有别的接口</b>。它不能读文件、不能上网、不能执行命令、不能记住昨天你说过什么。</p>
   <p>你在聊天软件里跟 AI 连聊十轮，感觉它记得你。真相是：聊天软件在第十轮时，把前面九轮的全部内容<b>重新发了一遍</b>。模型这一侧根本不知道有「第十轮」这回事。</p>
-  <pre><code>rn = f(S, m₁, r₁, m₂, r₂, …, mₙ)          式 0-1</code></pre>
+  <div class="formula"><var>r</var><sub><var>n</var></sub> = <var>f</var>(<var>S</var>, <var>m</var><sub>1</sub>, <var>r</var><sub>1</sub>, <var>m</var><sub>2</sub>, <var>r</var><sub>2</sub>, …, <var>m</var><sub><var>n</var></sub>)<span class="eq-no">式 0-1</span></div>
   <table>
     <tr><th>符号</th><th>是什么</th><th>直觉</th></tr>
     <tr><td><code>f</code></td><td>模型本身</td><td>只会「接一段、续一段」的机器。纯函数：同一份输入进去，不依赖任何外部状态</td></tr>
@@ -317,7 +327,7 @@
 const BLOCK_OVERHEAD = 4   // 每个内容块的 JSON 结构开销</code></pre>
   <p>四个字符算一个 token——这是<b>故意粗糙</b>的兜底：一旦提供方返回真实 usage，就改用真实值当锚点。但这条常数对中文是系统性低估（4 个汉字算 1 个 token，实际约 1–2 个汉字就 1 个 token），所以用中文跑 dsh 时压力估计偏乐观。<span style="color:var(--mis)">仓库没有讨论这一点，这是本站读源码时注意到的。</span></p>
   <p>把 0.2 和 0.3 拼起来，得到一个不太好的结论。设每轮新增量约为常数 c，则聊到第 n 轮的累计发送量：</p>
-  <pre><code>T(n) = ∑ₖ₌₁ⁿ k·c = c · n(n+1)/2          式 0-2</code></pre>
+  <div class="formula"><var>T</var>(<var>n</var>) = <span class="sumwrap"><span class="lims"><span class="lim"><var>n</var></span><span class="lim"><var>k</var>=1</span></span><span class="sigma">∑</span></span> <var>k</var>·<var>c</var> &nbsp;=&nbsp; <var>c</var> · <span class="frac"><span class="num"><var>n</var>(<var>n</var>+1)</span><span class="den">2</span></span><span class="eq-no">式 0-2</span></div>
   <p>关键是 <b>n²</b>：轮数翻一倍，花的钱变四倍。10 轮对话的成本是 1 轮的 55 倍，而不是 10 倍。</p>
   <div class="box caution"><span class="tag">读的时候要小心 · 本站推导</span>式 0-2 仓库里没有；且假设「每轮新增是常数」，真实工具结果大小差异巨大（读一个大文件可能一次吃掉一半预算），真实曲线比 n² 更不平滑。只用来说明「为什么平方增长」，不能拿去算真实账单。</div>
 
