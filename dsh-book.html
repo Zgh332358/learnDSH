@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>亲手读懂 DeepSeek Harness · 从 20 行循环到 20 万行</title>
+<style>
+  :root{
+    --bg:#f2ecdf; --sidebar:#ebe2cf; --card:#fbf8ef; --card2:#f4eede;
+    --text:#3d3529; --muted:#8c7f6a; --line:#ddd2ba; --line2:#cdbf9f;
+    --accent:#b0522c; --accent2:#8a6d3b; --gold:#c07b22;
+    --def:#4a6fa5; --ana:#c07b22; --mis:#c14b3a; --lab:#4e8d5b; --qa:#7d5bb5; --cross:#2f8f7f;
+    --code-bg:#f7f1e2; --ok:#4e8d5b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.85;transition:background .25s}
+  h1,h2,h3.ch-title,.logo{font-family:Georgia,"Songti SC","Noto Serif SC",serif}
+  code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.88em;background:var(--code-bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#6b4f2a}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;font-size:12.6px;line-height:1.65;margin:12px 0}
+  pre code{background:none;border:none;padding:0;color:#4a3d28}
+
+  /* ---------- layout ---------- */
+  .shell{display:flex;min-height:100vh}
+  aside.side{flex:none;width:252px;background:var(--sidebar);border-right:1px solid var(--line2);padding:26px 0 20px;position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:thin}
+  aside.side::-webkit-scrollbar{width:5px}
+  aside.side::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  aside.side .logo{display:block;text-align:center;font-weight:700;font-size:19px;color:var(--accent);letter-spacing:1px;padding:0 14px 6px}
+  aside.side .tagline{text-align:center;font-size:11px;color:var(--muted);padding:0 18px 18px;border-bottom:1px solid var(--line2);margin-bottom:14px}
+  .grp{padding:0 14px;margin-bottom:14px}
+  .grp h6{font-size:10.5px;letter-spacing:2px;color:var(--accent2);font-weight:700;margin:10px 4px 4px;text-transform:uppercase}
+  .grp a{display:flex;align-items:baseline;gap:7px;color:#6d6049;text-decoration:none;font-size:13px;padding:4.5px 9px;border-radius:7px;transition:.15s}
+  .grp a .n{flex:none;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--accent2);width:18px}
+  .grp a:hover{background:var(--card);color:var(--text)}
+  .grp a.active{background:var(--card);color:var(--accent);font-weight:600;box-shadow:inset 2px 0 0 var(--accent)}
+  aside.side .pwrap{margin:6px 18px 0;padding-top:14px;border-top:1px solid var(--line2);position:sticky;top:calc(100vh - 70px)}
+  aside.side .ptxt{font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  aside.side .pbar{height:7px;border-radius:4px;background:var(--line);overflow:hidden}
+  aside.side .pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--gold));transition:width .4s}
+  .main-col{flex:1;min-width:0}
+
+  /* ---------- hero ---------- */
+  header.hero{padding:76px 28px 54px;text-align:center;background:
+    radial-gradient(ellipse 55% 45% at 50% -8%, rgba(176,82,44,.13), transparent),
+    radial-gradient(ellipse 35% 35% at 85% 10%, rgba(192,123,34,.10), transparent);
+    border-bottom:1px solid var(--line)}
+  header.hero h1{font-size:clamp(24px,4vw,40px);font-weight:800;letter-spacing:-.5px;color:#33291c}
+  header.hero h1 em{font-style:normal;color:var(--accent)}
+  header.hero p.sub{max-width:680px;margin:15px auto 0;color:var(--muted);font-size:14.5px}
+  .stats{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;margin-top:28px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 18px;min-width:118px;box-shadow:0 1px 3px rgba(120,95,50,.06)}
+  .stat b{font-size:19px;display:block;color:var(--accent)}
+  .stat span{font-size:11px;color:var(--muted)}
+  .paths{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:26px}
+  .paths a{background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:7px 14px;color:var(--text);text-decoration:none;font-size:12.8px;transition:.2s}
+  .paths a:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
+
+  main{max-width:900px;margin:0 auto;padding:20px 28px 100px}
+  section.chapter{margin-top:62px;scroll-margin-top:20px}
+  .ch-head{display:flex;align-items:center;gap:13px;margin-bottom:4px}
+  .ch-num{flex:none;width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--gold));box-shadow:0 2px 6px rgba(176,82,44,.25)}
+  h2.ch-title{font-size:22px;font-weight:700;color:#33291c}
+  .ch-sub{color:var(--muted);font-size:13.5px;margin-left:59px}
+  .src{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .src code{font-size:11px}
+  .objectives{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:13px 19px;margin:15px 0 6px;font-size:13.8px;box-shadow:0 1px 3px rgba(120,95,50,.05)}
+  .objectives h4{font-size:13px;color:var(--accent);margin-bottom:6px}
+  .objectives li{margin-left:20px;margin-top:3px}
+  h3.sec{font-size:17px;margin:32px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);color:#413626;scroll-margin-top:20px}
+  h3.sec .no{color:var(--accent);margin-right:8px;font-family:ui-monospace,monospace}
+  h4.sub{font-size:14.5px;margin:20px 0 6px;color:var(--accent2)}
+  p{margin:10px 0}
+  .box{border-radius:10px;padding:13px 17px;margin:14px 0;font-size:14.2px;border:1px solid var(--line);background:var(--card);box-shadow:0 1px 3px rgba(120,95,50,.05)}
+  .box .tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:1px 9px;margin-bottom:7px;color:#fff}
+  .box.def{border-left:3px solid var(--def)} .box.def .tag{background:var(--def)}
+  .box.ana{border-left:3px solid var(--ana)} .box.ana .tag{background:var(--ana)}
+  .box.mis{border-left:3px solid var(--mis)} .box.mis .tag{background:var(--mis)}
+  .box.caution{border-left:3px solid var(--mis);background:#f9efe6} .box.caution .tag{background:var(--mis)}
+  .box.lab{border-left:3px solid var(--lab)} .box.lab .tag{background:var(--lab)}
+  .box.cross{border-left:3px solid var(--cross)} .box.cross .tag{background:var(--cross)}
+  .box.research{border-left:3px solid var(--qa)} .box.research .tag{background:var(--qa)}
+  .keyline{background:linear-gradient(90deg,rgba(176,82,44,.09),transparent);border-left:3px solid var(--accent);padding:11px 17px;border-radius:8px;margin:16px 0;font-size:14.8px;font-weight:600;color:#5a3d22}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+  th{background:var(--card2);font-weight:600}
+  .flow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;margin:16px 0;font-size:12px}
+  .flow .node{background:var(--card);border:1px solid var(--accent2);border-radius:8px;padding:4px 10px;white-space:nowrap;color:#5a4a30}
+  .flow .node.hot{border-color:var(--mis);color:var(--mis);font-weight:600}
+  .flow .node.gate{border-color:var(--lab);color:#3c7247;font-weight:600}
+  .flow .ar{color:var(--muted)}
+  .trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:16px 0}
+  .trio .col{border-radius:12px;padding:12px 14px;border:1px solid var(--line);background:var(--card);font-size:13px;text-align:center}
+  .trio .col h5{font-size:13.5px;margin-bottom:6px}
+  .trio .c1 h5{color:var(--def)} .trio .c2 h5{color:var(--qa)} .trio .c3 h5{color:var(--mis)}
+  .trio .col div{color:var(--muted);font-size:12.5px}
+  @media(max-width:640px){.trio{grid-template-columns:1fr}}
+  .qa{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:15px 0;overflow:hidden;box-shadow:0 1px 3px rgba(120,95,50,.05)}
+  .qa .q{padding:12px 16px;font-weight:600;display:flex;gap:10px;align-items:flex-start;font-size:14.2px}
+  .qa .q .chip{flex:none;background:var(--qa);color:#fff;font-size:10.5px;border-radius:5px;padding:2px 8px;margin-top:3px}
+  .qa .hints{padding:0 16px 6px}
+  .hint-btn{display:block;width:100%;text-align:left;background:var(--card2);border:1px dashed var(--line2);color:#7a6c52;border-radius:8px;padding:6px 11px;margin:5px 0;cursor:pointer;font-size:12.8px;transition:.2s}
+  .hint-btn:hover{border-color:var(--qa);color:var(--text)}
+  .hint-body{display:none;padding:7px 12px;font-size:13.2px;border-left:2px solid var(--qa);margin:3px 0 7px;background:var(--card2);border-radius:0 6px 6px 0}
+  .hint-body.show{display:block}
+  details{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:12px 0}
+  summary{cursor:pointer;padding:10px 16px;font-weight:600;font-size:13.8px;list-style:none;display:flex;align-items:center;gap:8px;user-select:none;color:#5a4a30}
+  summary::before{content:"▸";color:var(--accent);transition:transform .2s}
+  details[open] summary::before{transform:rotate(90deg)}
+  details .inner{padding:0 18px 14px;font-size:14px}
+  .done-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin:12px 0;font-size:13.8px;cursor:pointer;user-select:none}
+  .done-row input{width:17px;height:17px;accent-color:var(--ok);cursor:pointer}
+  .done-row.checked{opacity:.5;text-decoration:line-through}
+  .stepper{background:var(--card);border:1px solid var(--line2);border-radius:12px;margin:16px 0;overflow:hidden;box-shadow:0 2px 6px rgba(120,95,50,.07)}
+  .stepper .bar{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--card2)}
+  .stepper .bar b{font-size:13px;margin-right:2px;font-family:Georgia,serif}
+  .stepper .bar button{background:var(--card);border:1px solid var(--line2);color:var(--text);border-radius:7px;padding:4px 12px;cursor:pointer;font-size:12.5px}
+  .stepper .bar button:hover{border-color:var(--accent);color:var(--accent)}
+  .stepper .bar .cnt{font-size:12px;color:var(--muted);margin-left:auto}
+  .stepper .grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:0}
+  @media(max-width:700px){.stepper .grid2{grid-template-columns:1fr}}
+  .stepper .code-pane{padding:12px 14px;border-right:1px solid var(--line);font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.7;white-space:pre;overflow-x:auto;color:#4a3d28}
+  @media(max-width:700px){.stepper .code-pane{border-right:none;border-bottom:1px solid var(--line)}}
+  .stepper .code-pane .hl{display:inline-block;width:100%;background:rgba(192,123,34,.22);border-radius:4px}
+  .stepper .info-pane{padding:12px 14px;font-size:12.8px}
+  .stepper .info-pane .lbl{color:var(--accent);font-weight:700;font-size:12px;margin-bottom:4px}
+  .stepper .msg-list{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.6;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:180px;overflow-y:auto;margin-top:8px}
+  .stepper .tok{font-size:12px;color:var(--ana);font-weight:700}
+  .quiz{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:14px 0;padding:14px 17px;box-shadow:0 1px 3px rgba(120,95,50,.05)}
+  .quiz .lv{display:inline-block;font-size:11px;font-weight:700;border-radius:5px;padding:1px 8px;margin-right:6px;background:var(--ok);color:#fff}
+  .quiz .qn{font-size:14px;font-weight:600;margin:6px 0}
+  .quiz .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .quiz input{background:var(--code-bg);border:1px solid var(--line2);color:var(--text);border-radius:7px;padding:6px 10px;font-size:13px;width:130px}
+  .quiz button{background:var(--card2);border:1px solid var(--line2);color:var(--text);border-radius:7px;padding:5px 12px;cursor:pointer;font-size:12.5px}
+  .quiz button:hover{border-color:var(--accent);color:var(--accent)}
+  .quiz .verdict{font-size:13px;margin-top:8px;display:none}
+  .quiz .verdict.show{display:block}
+  .quiz .verdict.ok{color:var(--ok)} .quiz .verdict.bad{color:var(--mis)}
+  .arch{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:11px;margin:16px 0}
+  .layer{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .layer h5{font-size:12.3px;color:var(--accent);margin-bottom:6px}
+  .layer .pill{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:1px 8px;font-size:11.2px;margin:2px 2px;color:var(--muted)}
+  footer{border-top:1px solid var(--line);padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:9px 18px;font-size:13.5px;transition:.3s;opacity:0;z-index:200;color:var(--text)}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .toc{columns:2;column-gap:28px;font-size:13px}
+  .toc a{display:block;color:var(--muted);text-decoration:none;padding:2.5px 0}
+  .toc a:hover{color:var(--accent)}
+  @media(max-width:700px){.toc{columns:1}}
+
+  /* mobile: sidebar to top */
+  @media(max-width:900px){
+    .shell{flex-direction:column}
+    aside.side{position:static;width:100%;height:auto;padding-bottom:10px;border-right:none;border-bottom:1px solid var(--line2)}
+    aside.side .grp{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:6px}
+    aside.side .grp h6{width:100%;margin:6px 4px 2px}
+    aside.side .grp a{padding:3px 8px}
+    aside.side .pwrap{position:static;margin:4px 18px 8px;padding-top:8px}
+    aside.side .tagline{padding-bottom:10px;margin-bottom:6px}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="side" id="sidenav">
+  <span class="logo">⬡ 读懂 DSH</span>
+  <div class="tagline">DeepSeek Harness 交互式导读<br>证据分级 · 机判自测 · 单步演示</div>
+  <div class="grp">
+    <h6>读法</h6>
+    <a href="#home" class="active"><span class="n">§</span>首页 · 怎么读</a>
+  </div>
+  <div class="grp">
+    <h6>起步 · Agent 是什么</h6>
+    <a href="#c0"><span class="n">0</span>零基础起步</a>
+    <a href="#c1"><span class="n">1</span>全景：20 行→20 万行</a>
+  </div>
+  <div class="grp">
+    <h6>Cordis · 一切皆插件</h6>
+    <a href="#c2"><span class="n">2</span>上下文与服务</a>
+    <a href="#c3"><span class="n">3</span>副作用必须可逆</a>
+    <a href="#c4"><span class="n">4</span>事件与洋葱</a>
+    <a href="#c5"><span class="n">5</span>组装插件树</a>
+  </div>
+  <div class="grp">
+    <h6>循环 · Agent 的心脏</h6>
+    <a href="#c6"><span class="n">6</span>会话日志铁律</a>
+    <a href="#c7"><span class="n">7</span>轮次与步骤</a>
+    <a href="#c8"><span class="n">8</span>提示词那一页纸</a>
+  </div>
+  <div class="grp">
+    <h6>工具 · 权限 · 能力</h6>
+    <a href="#c9"><span class="n">9</span>七道关</a>
+    <a href="#c10"><span class="n">10</span>权限：只许说不</a>
+    <a href="#c11"><span class="n">11</span>能力 seam</a>
+    <a href="#c12"><span class="n">12</span>上下文满了</a>
+    <a href="#c13"><span class="n">13</span>并发调度</a>
+    <a href="#c14"><span class="n">14</span>子 agent 与外围</a>
+  </div>
+  <div class="grp">
+    <h6>收尾</h6>
+    <a href="#c17"><span class="n">17</span>欠了什么债</a>
+    <a href="#review"><span class="n">🔁</span>复习抽认</a>
+    <a href="#usage"><span class="n">🚀</span>使用速查</a>
+  </div>
+  <div class="pwrap">
+    <div class="ptxt">学习进度 <b id="pctTxt" style="color:var(--accent)">0%</b></div>
+    <div class="pbar"><i id="pbarFill"></i></div>
+  </div>
+</aside>
+
+<div class="main-col">
+
+<header class="hero" id="home">
+  <h1>把一个 <em>20 行的 while 循环</em>，<br>读成一套 20 万行的系统</h1>
+  <p class="sub">DeepSeek Harness（dsh）开源智能体框架的交互式导读。写法：先讲机制，再让你自己推一遍，然后机判考你；每句关键论断标注证据等级；代码事实全部对到本地克隆仓库的文件与行号。</p>
+  <div class="stats">
+    <div class="stat"><b>247</b><span>packages/ 下的包</span></div>
+    <div class="stat"><b>1691</b><span>agent-loop 源码行数</span></div>
+    <div class="stat"><b>52</b><span>个模型可见工具</span></div>
+    <div class="stat"><b>= 4</b><span>CHARS_PER_TOKEN（estimate.ts:13）</span></div>
+    <div class="stat"><b>0.x</b><span>版本 · 会有破坏性变更</span></div>
+  </div>
+  <div class="paths">
+    <a href="#c0">🚗 从零开始（第 0 章 · 全书最长）</a>
+    <a href="#stepper">▶ 先玩 20 行循环单步演示</a>
+    <a href="#c9">🛡 直奔七道关</a>
+    <a href="#usage">🚀 只想用它</a>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= 读法 ================= -->
+<section class="chapter">
+  <h3 class="sec"><span class="no">§</span>怎么读这个站</h3>
+  <div class="toc">
+    <a href="#c0">第 0 章 地基：一个 agent 到底是什么</a>
+    <a href="#c1">第 1 章 全景：20 行为什么变成 20 万行</a>
+    <a href="#c2">第 2 章 上下文与服务：为什么不用 import</a>
+    <a href="#c3">第 3 章 副作用为什么必须可逆</a>
+    <a href="#c4">第 4 章 事件：五种分发模式与洋葱</a>
+    <a href="#c5">第 5 章 组装：一棵可以被别人改的插件树</a>
+    <a href="#c6">第 6 章 会话日志：模型可见即已记录</a>
+    <a href="#c7">第 7 章 轮次与步骤：循环真正的样子</a>
+    <a href="#c8">第 8 章 提示词：模型看到的那一页纸</a>
+    <a href="#c9">第 9 章 一次工具调用要过七道关</a>
+    <a href="#c10">第 10 章 权限：只许说不，不许说是</a>
+    <a href="#c11">第 11 章 能力 seam：换一个提供方等于换一个世界</a>
+    <a href="#c12">第 12 章 上下文满了怎么办</a>
+    <a href="#c13">第 13 章 并发：谁先谁后</a>
+    <a href="#c14">第 14 章 子 agent、目标与外围</a>
+    <a href="#c17">第 17 章 这套设计欠了什么债</a>
+    <a href="#review">复习 · 间隔抽认</a>
+    <a href="#usage">使用速查</a>
+  </div>
+  <div class="box def"><span class="tag">证据分级（全站约定）</span>
+    ① <b>仓库明文</b>——本地克隆里的代码/注释/docs 可查，尽量给出文件与行号；② <b>设计意图</b>——文档声明的动机；③ <b>本站推断</b>——我们的归纳或推导，仓库未如此表述（<span style="color:var(--mis);font-weight:600">红色谨慎框</span>）。读到任何一句"这个设计更好"，先问它属于哪一档。
+  </div>
+  <div class="box def"><span class="tag">五个学习模式</span>
+    每章按同一路径走：<b>讲解</b>（机制）→ <b>推导</b>（"自己推一遍"，想好了再看答案）→ <b>训练</b>（四级提示阶梯 + 机判自测，答错自动进复习队列）→ <b>答辩</b>（"如果我是审稿人"，先自己组织防守再看参考）→ <b>研究</b>（真未解 / 对你而言未知）。
+  </div>
+</section>
+
+<!-- ================= CH0 ================= -->
+<section class="chapter" id="c0">
+  <div class="ch-head"><div class="ch-num">0</div><h2 class="ch-title">零基础起步：一个 agent 到底是什么</h2></div>
+  <p class="src">来源：仓库 README.zh.md、docs/cordis-primer.zh.md、<code>packages/llm/llm/src/types.ts</code>、<code>packages/llm/token-meter/src/estimate.ts</code>、<code>packages/core/tools/src/index.ts</code>（本地克隆核对）</p>
+  <div class="objectives"><h4>学完这一章你应该能做到</h4><ul>
+    <li>用自己的话解释「大语言模型没有记忆」的确切含义，以及它为什么逼出后面十几章的所有设计</li>
+    <li>估算一段中文大约值多少 token，说清 token 上限为什么是硬约束</li>
+    <li>把「工具调用」拆成四步，指出哪一步是 AI 干的、哪三步不是</li>
+    <li>亲手单步走一遍二十行的最小 agent，并用一条可验证的判据确认它跑对了</li>
+  </ul></div>
+
+  <h3 class="sec"><span class="no">0.1</span>先说清楚：没有 agent 的时候，人是怎么干活的</h3>
+  <p>你想让 AI 帮你改一个叫 <code>report.txt</code> 的文件。2023 年的干法：打开聊天窗口，手动把文件内容复制进去，问它怎么改，它给你一段新文字，你再手动复制回文件。每一次「复制、粘贴、切窗口」，都是你在当搬运工。</p>
+  <p>你干的活其实特别机械：<b>把外面世界的东西喂给模型，再把模型说的话拿到外面世界去执行</b>。既然机械，就能写成程序。这个程序就是 agent 的全部。</p>
+  <div class="box def"><span class="tag">定义</span>
+    <b>agent（智能体）</b>：一个能自己循环调用模型、并且能真的动手（读写文件、执行命令、访问网络）的程序。它不是一个模型，是一个<b>围着模型转的程序</b>。<br>
+    <b>harness（智能体运行框架）</b>：承载 agent 的那一层框架。DeepSeek Harness 的 README 第一句就是这么自我介绍的。模型是马，harness 是马身上那套挽具。
+  </div>
+  <div class="keyline">一句话记住：agent 里最难的部分没有 AI。AI 只负责「说下一步该干什么」，剩下的全是普通程序的活儿——而恰恰是这些普通程序的活儿，撑起了 20 万行。</div>
+
+  <h3 class="sec"><span class="no">0.2</span>大语言模型：一个吃文字吐文字的函数，而且它没有记忆</h3>
+  <p>把模型当成一个函数：你给它一段文字，它还你一段文字。<b>没有别的接口</b>。它不能读文件、不能上网、不能执行命令、不能记住昨天你说过什么。</p>
+  <p>你在聊天软件里跟 AI 连聊十轮，感觉它记得你。真相是：聊天软件在第十轮时，把前面九轮的全部内容<b>重新发了一遍</b>。模型这一侧根本不知道有「第十轮」这回事。</p>
+  <pre><code>rn = f(S, m₁, r₁, m₂, r₂, …, mₙ)          式 0-1</code></pre>
+  <table>
+    <tr><th>符号</th><th>是什么</th><th>直觉</th></tr>
+    <tr><td><code>f</code></td><td>模型本身</td><td>只会「接一段、续一段」的机器。纯函数：同一份输入进去，不依赖任何外部状态</td></tr>
+    <tr><td><code>S</code></td><td>系统提示</td><td>每次都要重发的开场白：你是谁、能用哪些工具、有什么规矩</td></tr>
+    <tr><td><code>mₖ</code></td><td>第 k 轮用户说的话</td><td>人打的字</td></tr>
+    <tr><td><code>rₖ</code></td><td>第 k 轮模型的回复</td><td>上一次它吐出来的那段文字，下一次要<b>原样带回去</b></td></tr>
+  </table>
+  <p>注意式 0-1 右边的括号：第 n 轮的输入<b>包含前面所有轮的输入和输出</b>。这就是「没有记忆」的精确写法——所谓记忆，是括号里那一长串，而它是<b>你的程序</b>负责保存和重发的。</p>
+  <div class="box ana"><span class="tag">打个比方</span>
+    模型像一个每天早上彻底失忆的专家。要他接着昨天的工作干，唯一的办法是每天早上把昨天的完整工作日志重新念一遍给他听。
+    <div style="margin-top:7px;font-size:13px;color:var(--muted)">⚠ 类比失效处：失忆的人至少知道「我失忆了」，模型连这个都没有——它不是忘了，是压根没有「上一次」这个概念。而且真人听同一份日志两次会给同样的回答，模型不一定：输出带随机采样，严格说 f 是带随机性的函数，式 0-1 是简化写法。</div>
+  </div>
+  <div class="box mis"><span class="tag">常见误解</span>❌ 「模型能记住 128K 上下文」= 模型自己存了 128K 记忆。不是。那个数字是<b>单次输入的长度上限</b>——上限之内的东西，仍然要你每次原样重发。</div>
+  <p>这一条会在后面变成两整章：① 对话要整段重发 ⇒ 这份「整段」必须被完整可靠地存下来 ⇒ <b>会话日志</b>（第 6 章，仓库把它写成运行时不变量「模型可见即已记录」）；② 单次长度有上限 ⇒ 对话总有一天塞不下 ⇒ <b>压缩</b>（第 12 章）。</p>
+
+  <h3 class="sec"><span class="no">0.3</span>token：为什么按字算钱，为什么装不下</h3>
+  <table>
+    <tr><th>东西</th><th>大约多少 token</th><th>可感知的比较</th></tr>
+    <tr><td>一个汉字</td><td>0.5 ~ 1</td><td>——</td></tr>
+    <tr><td>一条微信消息（30 字）</td><td>20 ~ 30</td><td>——</td></tr>
+    <tr><td>一篇公众号推文（3000 字）</td><td>2000 ~ 3000</td><td>——</td></tr>
+    <tr><td>一本 20 万字的中文书</td><td>12 万 ~ 20 万</td><td>比绝大多数模型单次能吃下的还多</td></tr>
+    <tr><td>一个 500 行的代码文件</td><td>4000 ~ 8000</td><td>agent 读一次文件就是这个开销</td></tr>
+    <tr><td>dsh 的全部中文文档</td><td>约 75 万 ~ 120 万</td><td>105 篇文档、共 123 万字符</td></tr>
+  </table>
+  <div class="box caution"><span class="tag">读的时候要小心 · 本站给的量级</span>上表换算是量级参考，不是仓库数据也不是任何模型的官方 tokenizer 结果。网上「1 个汉字 = 2 个 token」多是老模型经验值，别当常数用。</div>
+  <p>单次上限是多少？这个数<b>不在仓库里</b>——它是模型目录的可选字段 <code>contextWindow</code>（<code>packages/llm/llm-deepseek/src/index.ts</code>，注释：「部署元数据不可用时省略」）。harness 自己不假定这个数，由你接的模型告诉它。</p>
+  <p>有意思的是，dsh 自己也不精确数 token。本地仓库 <code>packages/llm/token-meter/src/estimate.ts:13</code>：</p>
+  <pre><code>const CHARS_PER_TOKEN = 4   // 固定文本密度估计，直到拿到精确 tokenization
+const BLOCK_OVERHEAD = 4   // 每个内容块的 JSON 结构开销</code></pre>
+  <p>四个字符算一个 token——这是<b>故意粗糙</b>的兜底：一旦提供方返回真实 usage，就改用真实值当锚点。但这条常数对中文是系统性低估（4 个汉字算 1 个 token，实际约 1–2 个汉字就 1 个 token），所以用中文跑 dsh 时压力估计偏乐观。<span style="color:var(--mis)">仓库没有讨论这一点，这是本站读源码时注意到的。</span></p>
+  <p>把 0.2 和 0.3 拼起来，得到一个不太好的结论。设每轮新增量约为常数 c，则聊到第 n 轮的累计发送量：</p>
+  <pre><code>T(n) = ∑ₖ₌₁ⁿ k·c = c · n(n+1)/2          式 0-2</code></pre>
+  <p>关键是 <b>n²</b>：轮数翻一倍，花的钱变四倍。10 轮对话的成本是 1 轮的 55 倍，而不是 10 倍。</p>
+  <div class="box caution"><span class="tag">读的时候要小心 · 本站推导</span>式 0-2 仓库里没有；且假设「每轮新增是常数」，真实工具结果大小差异巨大（读一个大文件可能一次吃掉一半预算），真实曲线比 n² 更不平滑。只用来说明「为什么平方增长」，不能拿去算真实账单。</div>
+
+  <h3 class="sec"><span class="no">0.4</span>工具调用：全站的地基</h3>
+  <p>到这里为止，模型还是只会说话。你问「目录里有几个文件」，它只能猜或编；你说「帮我把这行删了」，它回一句「好的，已删除」——文件一个字节都没变。工具调用就是在「模型说的话」和「现实」这堵墙上开的那扇门。</p>
+  <p>很多人以为「模型调用工具」是模型内部长出了一双手。错，而且错得重要。真实机制是四步：</p>
+  <div class="trio">
+    <div class="col c1"><h5>你的程序（harness）</h5><div>保存整段对话<br>解析工具调用<br><b>真的执行 · 真的负责</b></div></div>
+    <div class="col c2"><h5>模型</h5><div>吃一段文字<br>吐一段文字<br>什么都碰不到</div></div>
+    <div class="col c3"><h5>真实世界</h5><div>文件 · 命令 · 网络</div></div>
+  </div>
+  <div class="flow">
+    <span class="node">① 整段对话 + 工具清单<br>（清单本身也占 token）</span><span class="ar">→</span>
+    <span class="node">② 一段文字<br>（可能含 tool-call）</span><span class="ar">→</span>
+    <span class="node hot">③ 真的执行<br>（唯一改变世界的一步，零 AI）</span><span class="ar">→</span>
+    <span class="node">④ 结果变成新文字<br>整段再发一遍（回到式 0-1）</span>
+  </div>
+  <p>这不是比喻，是仓库的类型定义（<code>packages/llm/llm/src/types.ts:99</code>）：</p>
+  <pre><code>interface ContentBlockMap {
+  'text':        TextBlock
+  'reasoning':   ReasoningBlock
+  'image':       ImageBlock
+  'tool-call':   ToolCallBlock        // id + name + arguments（原始 JSON 文本）
+  'tool-result': ToolResultBlock      // toolCallId（配对用）+ 结果内容 + isError
+}</code></pre>
+  <p>而「真的去执行」那一步（<code>packages/core/tools/src/index.ts</code>）：一个普通的 <code>execute</code> 函数，参数是模型给的 JSON，返回普通 JSON，里面写的是 <code>fs.readFile</code> 这种最普通的代码。dsh 一共注册了 <b>52 个</b>这样的工具：bash、read、write、edit、glob、grep、web_search、todo_write……名字都很朴素。</p>
+  <div class="box mis"><span class="tag">常见误解</span>「模型自己执行了命令」——没有。模型输出了一串字，你的程序看见那串字，自己去执行。所以：<b>工具能干的事，就是你允许它干的事</b>。模型说「删除整个磁盘」和说「今天天气不错」在传输层面完全一样——会不会真的删，取决于你的程序里有没有那段代码、有没有拦。这就是第 9、10 章整两章权限问题的由来，而那两章从头到尾没有 AI 参与。</div>
+  <div class="keyline">一句话记住：工具调用不是模型「获得了能力」，而是模型获得了<b>请求你替它做事的语法</b>。真正的能力一直在你手里，也一直是你的责任。</div>
+
+  <h4 class="sub" id="stepper">动手 · 单步走一遍二十行的最小 agent</h4>
+  <div class="stepper">
+    <div class="bar">
+      <b>循环模拟器</b>
+      <button onclick="step(-1)">◂ 上一步</button>
+      <button onclick="step(1)">单步 ▸</button>
+      <button onclick="autoPlay()">自动播放</button>
+      <button onclick="resetStep()">重来</button>
+      <span class="cnt" id="stepCnt">第 0 / 12 步</span>
+    </div>
+    <div class="grid2">
+      <div class="code-pane" id="codePane"></div>
+      <div class="info-pane">
+        <div class="lbl">循环外面那个程序在干什么</div>
+        <div id="stepDesc">按「单步」，看这个循环一行一行走。</div>
+        <div class="lbl" style="margin-top:10px">messages 数组（就是式 0-1 括号里那一长串）</div>
+        <div class="msg-list" id="msgList">（空）</div>
+        <div style="margin-top:8px">本次发送的 token（整段 ÷ 4）：<span class="tok" id="tokCnt">0</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="box lab"><span class="tag">做对了的样子</span>模型连续调用工具两次以上仍不混乱；历史完整重放；断电重启后你能解释丢掉了什么。<b>判据</b>：当模型回复里没有任何 tool-call 块时循环终止——它认为活干完了。这条判据有个隐含前提：模型自己知道什么时候收手。现实中它经常不知道（会无限重复调用同一个工具），所以真实系统还要加外部终止策略——dsh 里 <code>guard</code> 那组包干的就是这个。</div>
+
+  <div class="qa"><div class="q"><span class="chip">Q1</span>你的程序只注册了 read 和 write。模型输出了 tool-call：<code>name: "delete_everything"</code>。文件会被删吗？程序接下来该做什么？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 第一级 · 想方向</button><div class="hint-body">那个 tool-call 块本质上是什么东西？</div>
+      <button class="hint-btn" onclick="reveal(this)">💡 第二级 · 关键思路</button><div class="hint-body">谁去执行？你的程序拿到工具名之后第一件事是去一张表里查这个名字。</div>
+      <button class="hint-btn" onclick="reveal(this)">💡 第三级 · 第一步</button><div class="hint-body">查表，查不到。然后问自己：直接崩掉合适吗？模型还在等一个 tool-result。</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 完整答案</button><div class="hint-body">不会被删——那个块只是一段文字，程序查表查不到，根本没有代码可跑。正确做法：回一条错误结果（构造 tool-result，toolCallId 配对，isError 置真，写「没有这个工具」），照常整段重发。若直接抛异常退出，模型那一侧永远收不到配对结果，下一次请求会被提供方以「tool-call 没有对应 tool-result」拒绝。<b>变式</b>：工具名对但参数缺 path，该在哪一层拦？</div>
+    </div>
+  </div>
+  <div class="qa"><div class="q"><span class="chip">Q2</span>有人把工具结果当普通用户消息追加（纯文本、不带 id），单工具时能跑。构造一个它一定出错的场景。</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 第一级</button><div class="hint-body">什么情况下一次回复里会出现不止一个 tool-call？</div>
+      <button class="hint-btn" onclick="reveal(this)">💡 第二级</button><div class="hint-body">ToolResultBlock 里那个 toolCallId 字段为什么存在？——说明有时光靠顺序不够。</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 完整答案</button><div class="hint-body">模型一次要读 a.txt 和 b.txt，你为了快并发执行、谁先返回先追加谁。顺序变成「调a、调b、b的内容、a的内容」，没有 id 模型只能按顺序猜——把 b 的内容当 a 的，拿着错误文件继续干，全程不报错，因为每步语法都合法。toolCallId 把「哪个结果对应哪个调用」从靠顺序变成靠标识。<b>变式</b>：强制串行且按模型顺序追加就安全了吗？想想「某个工具超时了、你决定跳过它」。</div>
+    </div>
+  </div>
+
+  <h3 class="sec"><span class="no">0.5</span>JavaScript 最小够用集（读得懂即可）</h3>
+  <table>
+    <tr><th>东西</th><th>一句话</th><th>在 dsh 里的对应</th></tr>
+    <tr><td>对象</td><td>一袋带名字的东西，<code>{ id: 'call_001', name: 'read' }</code> 取值用点</td><td>恰好就是一个 ToolCallBlock</td></tr>
+    <tr><td>数组</td><td>一排有顺序的东西，<code>push</code> 追加</td><td>式 0-1 括号里那一长串落到代码里就是 <code>messages</code></td></tr>
+    <tr><td>函数</td><td>一段能被叫起来的代码</td><td>工具的 <code>execute(args)</code></td></tr>
+    <tr><td>async/await</td><td>有些事要花时间；忘写 await 拿到的是「取货凭条」（Promise）而不是货</td><td>每次模型请求、每次工具执行</td></tr>
+    <tr><td>回调</td><td>把一段代码交给别人，让别人在合适的时候替你跑</td><td>事件监听器的注册</td></tr>
+    <tr><td>事件</td><td>on 登记听众，emit 喊一嗓子</td><td>第 4 章的五种分发模式</td></tr>
+  </table>
+
+  <h3 class="sec"><span class="no">0.6</span>依赖：为什么「谁先启动」会变成一个问题</h3>
+  <p>二十行循环里没有这个问题——它只有一个文件。可一旦你的程序变成几百个插件（工具注册表要等工具都注册完，模型适配器要等配置读进来），「谁先启动」就成了问题。dsh 的答案：<b>依赖不是排顺序，是声明需求</b>。</p>
+  <pre><code>// packages/core/agent-loop/src/index.ts（本地克隆核对）
+export class AgentLoop extends Service implements AgentFactory {
+  static inject = ['agents', 'sessions', 'llm', 'tools', 'systemPrompt']
+}</code></pre>
+  <div class="box def"><span class="tag">定义</span><b>inject</b>：插件只声明「我需要这几个服务」，框架自己算启动顺序。没被满足的插件停在 <b>PENDING</b>——安静、合法、不报错，服务到位就启动。</div>
+  <div class="box mis"><span class="tag">常见误解</span>❌ 「inject 里的服务不存在会报错。」不会，插件<b>静默地永远等待</b>。这是排障时最先该查的地方——推论：改配置文件的行序毫无作用，顺序由依赖图决定。</div>
+
+  <h3 class="sec"><span class="no">0.7</span>状态机：几个格子，加上格子之间的箭头</h3>
+  <p>为什么需要它：插件可能「加载中 / 等依赖 / 运行 / 卸载中 / 失败」，如果用一堆布尔标记（isLoading && !failed && …）组合会爆炸。状态机把「一堆标记的组合」压缩成<b>有限几个合法状态</b>。Cordis 的 fiber 有六个状态；dsh 的会话、终端、任务各有自己的状态机——出问题时先问「它现在在哪个格子、卡在哪条边上」。</p>
+  <div class="flow">
+    <span class="node">PENDING<br>（等依赖）</span><span class="ar">→</span>
+    <span class="node gate">RUNNING</span><span class="ar">→</span>
+    <span class="node">DISPOSING<br>（卸载中）</span><span class="ar">→</span>
+    <span class="node hot">DISPOSED / FAILED</span>
+  </div>
+
+  <h3 class="sec"><span class="no">0.§</span>机判自测（4 题）</h3>
+  <p class="src">答完自动计入你的进度。答得吃力就去复习区再过一遍。</p>
+  <div class="quiz" data-ans="500" data-tol="0">
+    <span class="lv">L1 · 直接应用</span><span style="font-size:12px;color:var(--muted)">数值题</span>
+    <div class="qn">用 CHARS_PER_TOKEN = 4 估算：2000 个汉字（不计块开销）值多少 token？</div>
+    <div class="row"><input type="number" placeholder="token"><button onclick="grade(this)">提交</button><button class="hint2" onclick="quizHint(this,0)">提示 (0/2)</button><button onclick="quizAns(this)">直接看答案</button></div>
+    <div class="verdict"></div>
+    <div class="h2" style="display:none">2000 ÷ 4 = 500。注意真实值约 1000~2000（一个汉字 0.5~1 token），所以这条规则对中文<b>低估 2~4 倍</b>——harness 以为还很宽裕，实际已近上限，压缩会触发得太晚。</div>
+  </div>
+  <div class="quiz" data-ans="315000" data-tol="0">
+    <span class="lv">L2 · 变形迁移</span><span style="font-size:12px;color:var(--muted)">数值题</span>
+    <div class="qn">每步新增 c = 1500 token，整段重发，走完第 20 步的累计发送总量？（式 0-2）</div>
+    <div class="row"><input type="number" placeholder="token"><button onclick="grade(this)">提交</button><button class="hint2" onclick="quizHint(this,1)">提示 (0/2)</button><button onclick="quizAns(this)">直接看答案</button></div>
+    <div class="verdict"></div>
+    <div class="h2" style="display:none">T(20) = 1500 × 20×21/2 = 315,000。真实新内容只有 30,000——同样的信息付了约 10 倍。</div>
+  </div>
+  <div class="quiz" data-ans="11" data-tol="0">
+    <span class="lv">L1 · 直接应用</span><span style="font-size:12px;color:var(--muted)">数值题</span>
+    <div class="qn">聊了 5 个来回后发第 6 句：这次请求总共包含几条消息（不含系统提示）？</div>
+    <div class="row"><input type="number" placeholder="条"><button onclick="grade(this)">提交</button><button class="hint2" onclick="quizHint(this,2)">提示 (0/2)</button><button onclick="quizAns(this)">直接看答案</button></div>
+    <div class="verdict"></div>
+    <div class="h2" style="display:none">用户消息 6 条 + 模型回复 5 条 = 11 条。模型自己说过的也要带回去——对这次请求而言，它上次说的话和你说过的一样，都只是输入文字。</div>
+  </div>
+  <div class="quiz" data-ans="3" data-tol="0">
+    <span class="lv">L1 · 直接应用</span><span style="font-size:12px;color:var(--muted)">数值题</span>
+    <div class="qn">工具调用四步里，「真正改变世界」的是第几步？</div>
+    <div class="row"><input type="number" placeholder="第几步"><button onclick="grade(this)">提交</button><button class="hint2" onclick="quizHint(this,3)">提示 (0/2)</button><button onclick="quizAns(this)">直接看答案</button></div>
+    <div class="verdict"></div>
+    <div class="h2" style="display:none">第 ③ 步——你的程序真的去执行。那一步零 AI 参与，也是全部责任的所在。</div>
+  </div>
+
+  <h3 class="sec"><span class="no">0.∞</span>本章小结</h3>
+  <p>六件事：一，模型是无状态函数，你每次整段重发（式 0-1），记忆是你的程序在维护；二，token 同时是钱和硬上限，累计成本随轮数平方增长（式 0-2）；三，工具调用是「模型请你替它做事的语法」，执行和责任都在你的程序——全站地基；四，JS 六样东西；五，依赖是声明不是排序，没人提供的服务让插件静默等待；六，状态机把布尔组合爆炸压成有限格子。</p>
+  <p>你已经单步走过了那个 20 行循环。它对应 dsh 的 <code>packages/core/agent-loop</code>（本地克隆 6 个源文件、1691 行）。从 20 行到 1691 行中间在干什么？整个仓库剩下的 20 万行又在干什么？第 1 章一条一条告诉你，你那 20 行在真实世界里会怎么死。</p>
+  <div class="done-row"><input type="checkbox" data-key="c0"><span>我能不看材料写出式 0-1/0-2、复述四步分工、并解释 PENDING</span></div>
+</section>
+
+<!-- ================= CH1 ================= -->
+<section class="chapter" id="c1">
+  <div class="ch-head"><div class="ch-num">1</div><h2 class="ch-title">全景：那 20 行为什么变成了 20 万行</h2></div>
+  <div class="objectives"><h4>学完这一章你应该能做到</h4><ul>
+    <li>把九种死法各自对应到 dsh 的解药包</li>
+    <li>说出「一切皆插件」换来什么、付出什么</li>
+  </ul></div>
+  <h3 class="sec"><span class="no">1.1</span>九种死法：把你那 20 行放进真实世界</h3>
+  <table>
+    <tr><th>#</th><th>死法</th><th>解药</th><th>包（仓库明文）</th></tr>
+    <tr><td>一</td><td>对话越来越长，直到发不出去</td><td>token 计量 + 剪枝/摘要</td><td><code>token-meter</code> <code>compaction/*</code></td></tr>
+    <tr><td>二</td><td>模型中途改主意，输入没有边界</td><td>轮次/步骤/inbox</td><td><code>agent-loop</code></td></tr>
+    <tr><td>三</td><td>工具跑到一半，用户想停</td><td>取消信号 + turn-stopping</td><td>第 7 章</td></tr>
+    <tr><td>四</td><td>两个工具同时改一个文件</td><td>并发分类 + 屏障 + 滚动池</td><td>第 13 章</td></tr>
+    <tr><td>五</td><td>模型要求删掉整个磁盘</td><td>守卫 + 审批 + Landlock 沙箱</td><td>第 9、10 章</td></tr>
+    <tr><td>六</td><td>要换一家模型厂商</td><td>LLM 适配器接缝</td><td><code>llm/llm</code> + <code>llm-deepseek</code>/<code>llm-pi-ai</code></td></tr>
+    <tr><td>七</td><td>要在别人的机器上跑</td><td>能力 seam</td><td>第 11 章</td></tr>
+    <tr><td>八</td><td>崩了之后没法恢复现场</td><td>仅追加日志 + 投影</td><td>第 6 章</td></tr>
+    <tr><td>九</td><td>想加个新功能，得改核心循环</td><td>一切皆插件 + 四层 patch</td><td>第 2–5 章</td></tr>
+  </table>
+  <h3 class="sec"><span class="no">1.2</span>dsh 有多大（本地克隆核对）</h3>
+  <p><code>packages/</code> 下 247 个包（另有 vendor 内置框架、apps、python、native）；agent-loop 只占全仓不到 1%。<b>记住这个比例</b>：剩下 99% 都在让循环可靠、可观测、可插拔。</p>
+  <div class="arch">
+    <div class="layer"><h5>① CLI 入口 apps/cli</h5><span class="pill">dsh web</span><span class="pill">--profile headless</span><span class="pill">--profile sdk</span><span class="pill">--profile acp</span><span class="pill">--dump-config</span><span class="pill">dsh plugin</span></div>
+    <div class="layer"><h5>② 装配层 bundle/boot</h5><span class="pill">dsh-base</span><span class="pill">web-app</span><span class="pill">headless</span><span class="pill">cordis.patch.yml</span><span class="pill">HMR</span></div>
+    <div class="layer"><h5>③ 核心服务 core</h5><span class="pill">ctx.sessions</span><span class="pill">ctx.tools</span><span class="pill">ctx.agents</span><span class="pill">agent-loop</span><span class="pill">ctx.systemPrompt</span></div>
+    <div class="layer"><h5>④ 能力接缝</h5><span class="pill">ctx.llm</span><span class="pill">ctx.shell</span><span class="pill">ctx.terminals</span><span class="pill">ctx.fs</span><span class="pill">lsp</span><span class="pill">web</span><span class="pill">mcp</span><span class="pill">skills</span></div>
+    <div class="layer"><h5>⑤ 宿主与界面</h5><span class="pill">webserver</span><span class="pill">React SPA</span><span class="pill">@Remote RPC</span><span class="pill">127.0.0.1:3080</span></div>
+    <div class="layer"><h5>⑥ 外围</h5><span class="pill">Python SDK</span><span class="pill">landlock-run</span><span class="pill">website</span></div>
+  </div>
+  <h3 class="sec"><span class="no">1.3</span>「一切皆插件」的代价</h3>
+  <p>换来：换模型零改码、换执行环境零改码、树外插件生态、连 agent 循环本身都能从配置替换。付出（<span style="color:var(--mis)">本站归纳</span>）：① 没有「入口」，任何行为都要跨包才能看懂；② 一个功能散在三个包；③ 启动失败 = 静默 PENDING；④ 抽象本身要花钱。</p>
+  <div class="done-row"><input type="checkbox" data-key="c1"><span>我能把九种死法各自对应到解药包，说出插件化的四笔代价</span></div>
+</section>
+
+<!-- ================= CH2 ================= -->
+<section class="chapter" id="c2">
+  <div class="ch-head"><div class="ch-num">2</div><h2 class="ch-title">上下文与服务：为什么不用 import</h2></div>
+  <h3 class="sec"><span class="no">2.1</span>import 把两个决定焊死了</h3>
+  <p><code>import { bash }</code> 把「我需要什么」和「谁来满足我」写死在同一行。而这两个决定本该由不同的人在不同时刻做出。ctx 是一个装服务的容器：消费方只说名字（<code>ctx.llm</code>），不说实现。</p>
+  <div class="box def"><span class="tag">定义</span><b>PENDING</b>：声明的依赖尚未就绪时插件停留的状态。依赖齐了才跑 <code>apply</code>。<b>依赖不是启动时查一次，是一直盯着</b>：服务消失，依赖它的插件跟着卸载；服务回来，再加载。这条性质让「从配置换掉任何实现」成为可能。</div>
+  <p>两件小事：可选依赖用 <code>ctx.get(name)</code> 探测（不进 PENDING，但提供方重载期间返回 undefined）；服务名是一张<b>全局平表</b>，撞名让后登记者进 FAILED——仓库靠加前缀的约定缓解，没有强制机制。</p>
+  <details><summary>自己算一遍：换一家模型厂商要动几个地方？</summary><div class="inner">零个代码文件。写一条 patch 把 <code>id: llm</code> 那行的 name 换成另一个适配器包，配置好 provider——依赖 llm 的所有插件自动经历一次「卸载→重挂」。前提：新适配器实现同一个消息/流词汇表（ContentBlockMap）。</div></details>
+  <div class="done-row"><input type="checkbox" data-key="c2"><span>我能解释 PENDING、「依赖一直被盯着」、和扁平命名空间的撞名后果</span></div>
+</section>
+
+<!-- ================= CH3 ================= -->
+<section class="chapter" id="c3">
+  <div class="ch-head"><div class="ch-num">3</div><h2 class="ch-title">副作用为什么必须可逆</h2></div>
+  <h3 class="sec"><span class="no">3.1</span>不可逆注册留下的现场</h3>
+  <p>插件注册工具后若不可撤销，热重载之后旧注册不是被替换而是被<b>叠加</b>：工具表多一条指向死代码的记录、事件上多一个幽灵监听器、多一个没人管的定时器——且没有任何报错。这类 bug 和操作历史绑定、不和代码绑定，复现不出来也就修不掉。</p>
+  <div class="box def"><span class="tag">定义</span><b>ctx.effect()</b>：拿资源的时候，就把「还回去」的办法交给框架。插件做的一切都记为一条效果；卸载时<b>逆着启动顺序、并发地</b>展开。dispose 会递归，而且会等。</div>
+  <div class="keyline">热重载不是专门实现的功能，是「一切注册皆可逆」的自然推论——<code>vendor/hmr</code> 只是把推论工程化。</div>
+  <div class="box ana"><span class="tag">打个比方</span>ctx 像酒店服务台：不是把电器焊死在墙里（import），而是打电话叫服务（ctx.xxx）；退房（卸载）时你叫过的所有服务被自动撤掉。<div style="margin-top:7px;font-size:13px;color:var(--muted)">⚠ 类比失效处：酒店服务彼此独立；ctx 的注册有顺序，卸载按启动的逆序进行。</div></div>
+  <details><summary>自己推一遍：效果不可逆时 HMR 会出什么事？</summary><div class="inner">幽灵注册：新旧两份同时响应同一事件，行为不可预测。可逆效果保证旧作用域整体销毁后再挂新的。你推到「重复注册」这步就及格。</div></details>
+  <div class="box research"><span class="tag">真未解</span>一个永远不结束的释放函数该由谁兜底？进程内框架没有操作系统那种强杀手段。</div>
+  <div class="done-row"><input type="checkbox" data-key="c3"><span>我能解释「热重载是可逆效果的推论」和释放顺序</span></div>
+</section>
+
+<!-- ================= CH4 ================= -->
+<section class="chapter" id="c4">
+  <div class="ch-head"><div class="ch-num">4</div><h2 class="ch-title">事件：五种分发模式与洋葱</h2></div>
+  <h3 class="sec"><span class="no">4.1</span>有了服务能直接调用，为什么还需要事件</h3>
+  <p>服务解决「找到对方」，事件解决「不知道对方是谁也要协作」——工具执行时想通知所有关心的人（UI、日志、遥测），你不可能挨个调用。</p>
+  <table>
+    <tr><th>模式</th><th>语义</th><th>典型用途</th></tr>
+    <tr><td><code>emit</code></td><td>喊一嗓子就走，不等</td><td>遥测、日志</td></tr>
+    <tr><td><code>parallel</code></td><td>一起跑，一起等</td><td>互不相干的观察者</td></tr>
+    <tr><td><code>serial</code></td><td>排队跑，先给出答案者赢</td><td>问答式查询</td></tr>
+    <tr><td><code>bail</code></td><td>serial 的同步版</td><td>同步短路判定</td></tr>
+    <tr><td><code>waterfall</code></td><td>环绕中间件，进一次出一次</td><td>改写请求/结果（洋葱）</td></tr>
+  </table>
+  <h3 class="sec"><span class="no">4.2</span>洋葱与那条必须背下来的纪律</h3>
+  <pre><code>async function send(args, next) {
+  //  next() 之前：可以改 args
+  const result = await next(args)
+  //  next() 之后：可以改 result
+  return result          // ← 忘了 return？结果被悄悄吃成 undefined
+}</code></pre>
+  <div class="box caution"><span class="tag">纪律</span><b>只观察的监听器也必须调 next()</b>——不调 = 一票否决，且框架不报任何错。更难查的是「调了 next() 却没把结果 return 出去」：链条通了、日志对了，结果静默变 undefined。</div>
+  <div class="done-row"><input type="checkbox" data-key="c4"><span>我能说出五种模式的区别和 waterfall 的两条坑</span></div>
+</section>
+
+<!-- ================= CH5 ================= -->
+<section class="chapter" id="c5">
+  <div class="ch-head"><div class="ch-num">5</div><h2 class="ch-title">组装：一棵可以被别人改的插件树</h2></div>
+  <h3 class="sec"><span class="no">5.1</span>四层叠加，后写胜出</h3>
+  <div class="flow">
+    <span class="node">① bundle 顺序<br><code>dsh-base</code> 第一层</span><span class="ar">→</span>
+    <span class="node">② profile 的<br>cordis.patch.yml</span><span class="ar">→</span>
+    <span class="node">③ home 级 patch<br>~/.dsh</span><span class="ar">→</span>
+    <span class="node">④ 命令行<br>--patch my.yml</span>
+  </div>
+  <pre><code>- insert:
+  - id: llm                  # loader 唯一认得的身份
+    name: '@deepseek-ai/dsh-llm'
+    config: { ... }          # patch 替换整个 config，不做深度合并</code></pre>
+  <div class="box def"><span class="tag">定义</span><b>id</b>：patch 靠它定位，增量重挂靠它比对。不写 id 的行每次读文件都换一个随机身份——任何一次编辑都让它被拆掉重装，连带依赖方一起抖。</div>
+  <div class="box mis"><span class="tag">常见误解</span>❌ patch 是深度合并（不是，保留的字段要重述）；❌ 打不中会报错（只写 stderr 警告——这是装配层唯一的「静默」，对策是 <code>dsh --profile web --dump-config</code>）。</div>
+  <p>五个官方 profile：<code>web</code>（UI）、<code>headless</code>（一次性）、<code>sdk</code>/<code>sdk-minimal</code>（SDK 子进程）、<code>acp</code>（编辑器自动化）。<code>isolate</code> 让两个组各看到一个自己的 shell——同名不同物，这是子 agent 拥有不同能力集的基础。</p>
+  <div class="done-row"><input type="checkbox" data-key="c5"><span>我能说出四层顺序、覆盖规则、--dump-config 的用途</span></div>
+</section>
+
+<!-- ================= CH6 ================= -->
+<section class="chapter" id="c6">
+  <div class="ch-head"><div class="ch-num">6</div><h2 class="ch-title">会话日志：模型可见即已记录</h2></div>
+  <h3 class="sec"><span class="no">6.1</span>一个消息数组，五件它做不到的事</h3>
+  <p>消息数组存的是<b>状态</b>；撤销、fork、回放、崩溃恢复、记账问的全是<b>过程</b>。所以换成仅追加日志：只往末尾加，从不修改已有条目——写入点用深冻结和 JSON 校验把它做成结构上的不可能。</p>
+  <div class="keyline">模型历史不是存着的，是从日志<b>投影</b>出来的（deriveMessages()）。同一份日志还投影出人类界面、账单、UI 状态——它们互不打架，因为都从同一个真源算。</div>
+  <h3 class="sec"><span class="no">6.2</span>那条会被代码检查的规矩（本地克隆核对）</h3>
+  <div class="box def"><span class="tag">铁律</span><b>模型可见即已记录</b>。<code>packages/core/agent-loop/src/invariant.ts</code> 会在请求发出前核对「即将发出的请求」与「从日志重放的推导」一致，不一致直接 fail：<code>llm request … diverges from the dispatch-time durable derivation (log-reconstruction desync)</code>。推论：想给模型加一种新输入，就必须新增一个会话事件类型并从日志渲染，<b>没有第二条路</b>。</div>
+  <p>13 种事件里只有 3 种产生模型可见内容（user/message、assistant/message、tool/result），且必须在写入时声明怎么加入 surface：追加，或替换掉一段（压缩用）。被替换的事件仍留在日志里，只是模型看不见了。fork、恢复、崩溃修复共用同一个机制：拿一段事件流当种子；崩溃后补一条合成的 interrupted，而不是截断日志。</p>
+  <div class="done-row"><input type="checkbox" data-key="c6"><span>我能说清投影、surface、和铁律的推论</span></div>
+</section>
+
+<!-- ================= CH7 ================= -->
+<section class="chapter" id="c7">
+  <div class="ch-head"><div class="ch-num">7</div><h2 class="ch-title">轮次与步骤：循环真正的样子</h2></div>
+  <h3 class="sec"><span class="no">7.1</span>三个不能混的词</h3>
+  <p><b>步骤</b>= 一次模型请求 + 它调用的工具；<b>轮次</b>= 零个或多个步骤，在领取首条输入之前打开、不再欠工作时关闭；<b>Round</b>= 外层策略的计数。「零个步骤的轮次」必须存在：被拒绝的输入仍要留下一条持久记录——日志必须记录这次尝试。</p>
+  <h3 class="sec"><span class="no">7.2</span>完整流水线（仓库明文）</h3>
+  <div class="flow">
+    <span class="node">inbox/claim</span><span class="ar">→</span>
+    <span class="node">turn/start</span><span class="ar">→</span>
+    <span class="node hot">agent/pre-step 🔶</span><span class="ar">→</span>
+    <span class="node">user/message 入日志</span><span class="ar">→</span>
+    <span class="node">deriveMessages()</span><span class="ar">→</span>
+    <span class="node hot">agent/request 🔶</span><span class="ar">→</span>
+    <span class="node hot">llm/stream 🔶</span><span class="ar">→</span>
+    <span class="node">assistant/message</span><span class="ar">→</span>
+    <span class="node">tool/call*<br><b>先记账再执行</b></span><span class="ar">→</span>
+    <span class="node gate">tools/pre-execute 🔶</span><span class="ar">→</span>
+    <span class="node">审批 + 守卫<br>(第 9–10 章)</span><span class="ar">→</span>
+    <span class="node gate">tools/execute 🔶</span><span class="ar">→</span>
+    <span class="node gate">tools/post-execute 🔶</span><span class="ar">→</span>
+    <span class="node">tool/result<br>按模型顺序提交</span><span class="ar">→</span>
+    <span class="node">step/end（finally）</span><span class="ar">→</span>
+    <span class="node hot">agent/turn-stopping 🔶</span><span class="ar">→</span>
+    <span class="node">turn/end</span>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:12.5px">🔶 = waterfall 瀑布事件：监听者包裹 next() 形成洋葱，必须调用 next()。</p>
+  <div class="keyline">三条贯穿全书的纪律：① 宁可记了没做，不能做了没记；② 模型可见即已记录；③ 记录顺序按模型顺序，不按完成顺序。</div>
+  <div class="done-row"><input type="checkbox" data-key="c7"><span>我能按序默写流水线并标出瀑布事件</span></div>
+</section>
+
+<!-- ================= CH8 ================= -->
+<section class="chapter" id="c8">
+  <div class="ch-head"><div class="ch-num">8</div><h2 class="ch-title">提示词：模型看到的那一页纸</h2></div>
+  <ul style="margin:8px 0 8px 22px;font-size:14.2px">
+    <li><b>拼出来的</b>：插件用 <code>section()/context()/variable()/tools()</code> 登记片段，<code>assemble()</code> 按 order 汇总，最后跑一次 system-prompt/assemble 瀑布。</li>
+    <li><b>schema 自动流入</b>：<code>ctx.tools.register()</code> 的注册表接了一根线到提示词注册表；模型只拿 name/description/parameters 三个字段（显式允许列表，不靠自觉）。</li>
+    <li><b>可见性一处解析</b>：提示词、查找、分发共用同一个 <code>view(scope)</code>。菜单划掉不叫禁用——厨房也得拒绝做才叫。</li>
+    <li><b>最具体者胜出</b>：带作用域的注册遮蔽同名全局注册；跨层重名是遮蔽，同层重名是错误。</li>
+    <li><b>每步都重发</b>：52 个工具约 3 万字符说明书，每走一步发一遍。省钱靠 restrict（真删字节）和稳定前缀（缓存），不靠调顺序。</li>
+  </ul>
+  <div class="box mis"><span class="tag">常见误解</span>❌ description 是文档。它是产品界面——<b>模型没看到的东西就不存在</b>。</div>
+  <div class="box research"><span class="tag">真未解</span>一段提示词值不值它占的那几百 token？成本有统一格式，收益没有任何口径。</div>
+  <div class="done-row"><input type="checkbox" data-key="c8"><span>我能解释白名单投影、shadowing、前缀缓存为什么会被弄坏</span></div>
+</section>
+
+<!-- ================= CH9 ================= -->
+<section class="chapter" id="c9">
+  <div class="ch-head"><div class="ch-num">9</div><h2 class="ch-title">一次工具调用要过七道关</h2></div>
+  <p class="ch-sub">模型说「删掉这个文件」，到文件真的没了。</p>
+  <div class="flow">
+    <span class="node">tool/call 先入日志<br><b>失败方向 = 记了但没做</b></span><span class="ar">→</span>
+    <span class="node gate">① tools/pre-execute<br>allow/deny/ask 瀑布</span><span class="ar">→</span>
+    <span class="node gate">② ctx.approval<br>问人，默认拒绝</span><span class="ar">→</span>
+    <span class="node gate">③ 单调守卫<br>只能拒绝不能放行</span><span class="ar">→</span>
+    <span class="node gate">④ tools/execute<br>环绕分发</span><span class="ar">→</span>
+    <span class="node">⑤ 工具本体<br>走 ctx.shell 接缝</span><span class="ar">→</span>
+    <span class="node gate">⑥ tools/post-execute<br>可替换内容/值</span><span class="ar">→</span>
+    <span class="node">⑦ tool/result 冻结<br>权威结果 + UI 卡片</span>
+  </div>
+  <p>关键细节：第 1 关<b>不能改写参数</b>——日志、审计、UI 和执行必须一致；审批的拒绝理由各不相同（人说不 / 无通道 / 无应答者），好让模型分辨；被拒绝的调用<b>不执行守卫</b>；post-execute 的「替换内容」不是保密——要挡住程序化消费方只能 block 或替换 value。</p>
+  <div class="qa"><div class="q"><span class="chip">Q</span>为什么审批排在守卫之前？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 提示</button><div class="hint-body">用户点了「允许」，能不能推翻所有者策略（比如永远不许在工作区外写文件）？</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 完整答案</button><div class="hint-body">人的同意只能把调用<b>送到</b>守卫面前，推翻不了所有者策略。顺序反了，守卫的拒绝可能被审批「洗白」，单调性（只严不松）就被打破。<b>变式</b>：为什么 pre-execute 不能改参数？（一致性：日志记的、UI 显示的、实际执行的必须是同一份。）</div>
+    </div>
+  </div>
+  <div class="done-row"><input type="checkbox" data-key="c9"><span>我能按序数出七道关并说出每道关「不能做什么」</span></div>
+</section>
+
+<!-- ================= CH10 ================= -->
+<section class="chapter" id="c10">
+  <div class="ch-head"><div class="ch-num">10</div><h2 class="ch-title">权限：只许说不，不许说是</h2></div>
+  <h3 class="sec"><span class="no">10.1</span>黑名单是错的答案</h3>
+  <p>枚举坏的，失败方向是放行；枚举好的，失败方向是拒绝。安全边界必须选后者。dsh 把这条做到类型层面：</p>
+  <div class="box def"><span class="tag">定义</span><b>单调守卫</b>：ToolGuard 的返回类型是 <code>string | undefined</code>——<b>没有 allow 分支</b>。任意多个守卫叠加的结果是交集，只会更严不会更松，且与注册顺序无关。删掉 allow 分支，等于让「谁的允许盖过谁的拒绝」这一整类 bug 在类型层面不存在。</div>
+  <p><b>默认拒绝</b>：没装审批服务、没有应答者、应答者抛异常、返回值不在词汇表里——四种「答不上来」全部倒向拒绝。ApprovalOutcome 里只有 <code>allowed-once</code> 是许可，且只授权所询问的那一次。<b>第二堵墙——沙箱</b>：守卫决定要不要做，沙箱决定做了能跑多远（Landlock 限制文件系统效果，不管网络）。</p>
+  <div class="box caution"><span class="tag">五件不牢靠的事（设计使然）</span>① isConcurrencySafe 是工具的自我声明，无人校验；② timeoutMs 只是声明，不装策略包就没有超时；③ fs 单槽归属是部署约定不是强制不变式；④ 被拒绝的调用不走守卫；⑤ never 的判定在 waterfall 之前——prepend 的监听器抢不到它前面。</div>
+  <div class="done-row"><input type="checkbox" data-key="c10"><span>我能证明「守卫叠加只会更严」并说出为什么这在类型上成立</span></div>
+</section>
+
+<!-- ================= CH11 ================= -->
+<section class="chapter" id="c11">
+  <div class="ch-head"><div class="ch-num">11</div><h2 class="ch-title">能力 seam：换一个提供方，等于换一个世界</h2></div>
+  <div class="box def"><span class="tag">定义（docs/glossary）</span>seam = <b>Service Definition</b>（拥有自身 ctx.&lt;key&gt; 和词汇类型的 Cordis Service，<b>绝不是 TypeScript interface</b>）+ 一个或多个 <b>Provider</b> + 一个或多个 <b>Consumer</b>。为什么不能是 interface？它换来三条<b>运行时</b>保证：组合期可替换（改配置不改 import）、依赖生命周期（没有提供方消费方不启动）、重复检测（装第二个 ctx.shell 直接抛）。</div>
+  <table>
+    <tr><th>包</th><th>角色</th><th>规模</th></tr>
+    <tr><td><code>dsh-shell</code></td><td>定义</td><td>350 行，抽象类仅三个方法</td></tr>
+    <tr><td><code>dsh-bash-local</code></td><td>提供方 A</td><td>363 行</td></tr>
+    <tr><td><code>dsh-bash-sandbox</code></td><td>提供方 B</td><td>继承 A，只多做「包 argv + 归因」</td></tr>
+    <tr><td><code>dsh-tool-bash</code></td><td>消费方</td><td>554 行，<b>全程不知道命令跑在哪</b></td></tr>
+  </table>
+  <div class="box cross"><span class="tag">这里有个岔路口</span>文件系统与进程提供方共享同一个执行世界——把 <code>ctx.fs</code> 和 <code>ctx.subprocess</code> 指向远程沙箱，Bash、PTY、LSP 全部搬家，工具代码一行不改。代价：只有一个提供方时，三份包的抽象成本白付。</div>
+  <div class="done-row"><input type="checkbox" data-key="c11"><span>我能说出三角色和「绝不是 interface」的三条理由</span></div>
+</section>
+
+<!-- ================= CH12 ================= -->
+<section class="chapter" id="c12">
+  <div class="ch-head"><div class="ch-num">12</div><h2 class="ch-title">上下文满了怎么办</h2></div>
+  <h3 class="sec"><span class="no">12.1</span>先算账</h3>
+  <p>窗口 100 万、阈值 0.8、每步新增 2000：约第 400 步撞墙，届时累计发送量是真实新内容的约 200 倍。<b>压缩不是省钱的优化，是让长任务能存在的前提。</b></p>
+  <ul style="margin:8px 0 8px 22px;font-size:14.2px">
+    <li><b>压力估算</b>：token-meter 用 CHARS_PER_TOKEN=4 估增量（对中文低估 2~4 倍）；保险是拿提供方报回的真实 usage 当锚点，误差被限制在增量部分。</li>
+    <li><b>两种触发</b>：pressure（快满了，挂 agent/pre-step，在派生请求之前）和 context-overflow（已被拒，挂 agent/request-error，可更激进）。</li>
+    <li><b>两种手段</b>：先免费的剪枝（裁工具结果），重新测量，不够再摘要。</li>
+    <li><b>不破坏铁律</b>：摘要骑在一条普通 user/message 上，用「替换型 surface」让被压掉的事件留在日志里——模型看不见 ≠ 没发生过。</li>
+    <li><b>spill</b>：超大输出挪到别处，模型只拿一张取货单（引用 + 预览），并故意跳过 read 以免无限循环。</li>
+  </ul>
+  <div class="box research"><span class="tag">真未解</span>长上下文中段信息更易被忽略（业界观察），但「多长算长」无定论。它直接决定压缩策略：利用率均匀 → 能塞就塞；不均匀 → 主动裁剪反而可能<b>提升</b>效果。dsh 的 compaction 选了后一种假设，仓库未给实验依据。</div>
+  <div class="done-row"><input type="checkbox" data-key="c12"><span>我能算出撞墙步数，并解释压缩为什么不破坏第 6 章铁律</span></div>
+</section>
+
+<!-- ================= CH13 ================= -->
+<section class="chapter" id="c13">
+  <div class="ch-head"><div class="ch-num">13</div><h2 class="ch-title">并发：三个工具同时跑，谁先谁后</h2></div>
+  <ul style="margin:8px 0 8px 22px;font-size:14.2px">
+    <li><b>谁能一起跑</b>：<code>isConcurrencySafe(args)</code> 自我声明——同步、纯、一元；只有精确的 <code>true</code> 才算同意，其余一切失败时关闭判为独占。一元 = 只看自己的参数，表达不了「两个写只有路径不同才安全」——所以文件写、bash、工作流全部独占。补池之前还要<b>重新分类</b>：前面的调用可能刚装卸了插件。</li>
+    <li><b>调度形态</b>：屏障 + 有界滚动池（maxParallelToolCalls 默认 10，设 1 退回串行）。滚动而非固定窗口——固定窗口会让容量闲置在一个慢调用后面。</li>
+    <li><b>完成顺序 ≠ 记录顺序</b>：提交游标只在连续的模型顺序格子上前进——1 秒完成的结果可能等到 3 秒才入日志。买到的是可复现性（快照测试、fork 共享前缀），关键路径一毫秒没多花。</li>
+  </ul>
+  <div class="done-row"><input type="checkbox" data-key="c13"><span>我能解释为什么记录顺序按模型顺序、以及它买到了什么</span></div>
+</section>
+
+<!-- ================= CH14 ================= -->
+<section class="chapter" id="c14">
+  <div class="ch-head"><div class="ch-num">14</div><h2 class="ch-title">子 agent、目标与外围</h2></div>
+  <table>
+    <tr><th>出路</th><th>上下文</th><th>取舍</th></tr>
+    <tr><td>同会话目标</td><td>全保留</td><td>靠压缩兜底</td></tr>
+    <tr><td>子 agent</td><td>隔离出去</td><td>本质是<b>压缩</b>，从事后提前到事前；父亲只拿回结论</td></tr>
+    <tr><td>Ralph 循环</td><td>每轮从零</td><td>共享工作区 + 有界交接，用记忆换纠错</td></tr>
+  </table>
+  <p>scope 只有两层（全局 / 恰好一个 scope key），带作用域的注册<b>不向下继承</b>给 subagent；父子关系记在 lineage 数据里（parentSession、delegationDepth），从不影响可见性。目标从磁盘捞起来是只读动作——想让它重新自动干活，必须有活人再点一次头（armed/disarmed）。</p>
+  <p style="font-size:13.5px;color:var(--muted)">外围一句话：沙箱（管进程树不管网络）· spill · skill（按需加载）· 持久化（SESSION_FORMAT_VERSION 停在 0）· LSP · 持久终端 · Code Mode · MCP（外部工具进同一个 ctx.tools 走同样七道关）· hooks · 遥测 · attachment · web server（不懂任何 harness 概念，界面本身也是插件拼的）。</p>
+  <div class="done-row"><input type="checkbox" data-key="c14"><span>我能说出三条出路的取舍和「scope 不向下继承」意味着什么</span></div>
+</section>
+
+<!-- ================= CH17 ================= -->
+<section class="chapter" id="c17">
+  <div class="ch-head"><div class="ch-num">17</div><h2 class="ch-title">这套设计欠了什么债</h2></div>
+  <p class="ch-sub">债是决策的背面，不是缺陷。想去掉右边，就得放弃左边同一行。</p>
+  <table>
+    <tr><th>决策（买到的）</th><th>债（付出的）</th></tr>
+    <tr><td>一切皆插件 → 任何部分可替换</td><td>没有入口；能力散在三个包；启动失败 = 静默 PENDING</td></tr>
+    <tr><td>仅追加日志 → 恢复、回放、审计</td><td>磁盘只增不减</td></tr>
+    <tr><td>单调守卫 → 组合安全</td><td>放宽策略无法用插件表达</td></tr>
+    <tr><td>waterfall → 极强拦截能力</td><td>忘调 next() 是静默失败</td></tr>
+    <tr><td>seam 三角色 → 换世界</td><td>单一提供方时抽象成本白付</td></tr>
+  </table>
+  <div class="box caution"><span class="tag">仓库没说的缺口（本站归纳）</span>服务被替换时进行中的异步调用怎么办——未定义；事件分发器不隔离监听器异常，而仓库自己的规则要求隔离；FiberState 没有状态转移表；提示词成本有统一格式、收益没有任何口径。</div>
+  <div class="box cross"><span class="tag">判断任何开源项目成熟度的七个信号</span>① 版本号与承诺（dsh 停在 0.x，明说会有破坏性变更）；② 文档描述的机制在你的部署里真的在跑吗；③ 限制写在 README 强制章节还是藏在长句后半段；④ 失败是报错还是沉默；⑤ 有没有「假模型」测试设施（dsh 有 llm-replay）；⑥ 生成物与手写散文的占比；⑦ 作者承认的软肋在哪一页。</div>
+  <div class="keyline">一句话记住：这套系统里几乎每条看起来啰嗦的规矩，都在防同一类事故——不会立刻报错、但会在某个具体时刻悄悄给你一份错数据。</div>
+  <div class="done-row"><input type="checkbox" data-key="c17"><span>我能说出五条「决策↔债」的对应，并复述上面那句话</span></div>
+</section>
+
+<!-- ================= REVIEW ================= -->
+<section class="chapter" id="review">
+  <div class="ch-head"><div class="ch-num">🔁</div><h2 class="ch-title">复习 · 间隔抽认</h2></div>
+  <p class="ch-sub">每次只揭一层提示；用到第几层，就说明第几层还没长进脑子里。</p>
+  <div class="qa"><div class="q"><span class="chip">Q1</span>「模型能记住 128K 上下文」这句话哪里错了？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 提示 1</button><div class="hint-body">那个数字是什么的上限？</div>
+      <button class="hint-btn" onclick="reveal(this)">💡 提示 2</button><div class="hint-body">上限之内的内容，每次要不要重发？</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 答案</button><div class="hint-body">128K 是<b>单次输入的长度上限</b>，不是模型自带的记忆。上限之内的内容仍然要每次原样重发——记忆是括号里那一长串（式 0-1），由你的程序维护。</div>
+    </div>
+  </div>
+  <div class="qa"><div class="q"><span class="chip">Q2</span>工具调用四步里哪步是 AI？为什么说「工具能干的事就是你允许它干的事」？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 提示</button><div class="hint-body">只有一步发生在模型那一侧。</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 答案</button><div class="hint-body">只有 ②（输出 tool-call 块）是 AI；①③④都是普通编程。模型说「删除整个磁盘」和说「今天天气不错」在传输层面完全一样——会不会真删取决于你的程序里有没有那段代码、有没有拦。这是第 9、10 章的由来。</div>
+    </div>
+  </div>
+  <div class="qa"><div class="q"><span class="chip">Q3</span>为什么多个守卫叠加只会更严、不会更松？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 提示 1</button><div class="hint-body">看 ToolGuard 的返回类型。</div>
+      <button class="hint-btn" onclick="reveal(this)">💡 提示 2</button><div class="hint-body">string | undefined——里面没有 allow。</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 答案</button><div class="hint-body">类型层面不存在「放行」分支，叠加结果是各拒绝条件的交集，与顺序无关。「谁的允许盖过谁的拒绝」整类 bug 在类型上不可能发生。</div>
+    </div>
+  </div>
+  <div class="qa"><div class="q"><span class="chip">Q4</span>四层 patch 的顺序？打不中会怎样？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 提示</button><div class="hint-body">bundle → profile → home → 命令行；后写胜出。</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 答案</button><div class="hint-body">打不中只写 stderr 警告、不报错——装配层唯一的「静默」。对策：dsh --profile web --dump-config 打印最终树。注意 patch 替换整个 config、不做深度合并。</div>
+    </div>
+  </div>
+  <div class="qa"><div class="q"><span class="chip">Q5</span>为什么压缩不违反「从不修改日志」？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this)">💡 提示 1</button><div class="hint-body">被压掉的事件去哪了？</div>
+      <button class="hint-btn" onclick="reveal(this)">💡 提示 2</button><div class="hint-body">surface 的两种加入方式：追加 / 替换一段。</div>
+      <button class="hint-btn" onclick="reveal(this)">✅ 答案</button><div class="hint-body">摘要作为新的替换型 surface 事件写入日志，被替换的原事件仍留在日志里，只是不再投影给模型。「模型看不见 ≠ 没发生过」——审计和回放不受影响。</div>
+    </div>
+  </div>
+  <div class="done-row"><input type="checkbox" data-key="review"><span>五道题都没看到第 2 层提示就答出来了</span></div>
+</section>
+
+<!-- ================= USAGE ================= -->
+<section class="chapter" id="usage">
+  <div class="ch-head"><div class="ch-num">🚀</div><h2 class="ch-title">使用速查</h2></div>
+<pre><code># 最快上手（npm，需 Node ≥22.19）
+npx @deepseek-ai/dsh web            # 打开 http://127.0.0.1:3080
+npx @deepseek-ai/dsh web --no-open  # SSH 场景，不开浏览器
+
+# 从源码（本仓库）
+pnpm install && pnpm run build && pnpm dsh web
+pnpm run typecheck                  # 成功退出 = 环境搭好了
+
+# 排障第一工具：打印组合后的插件树
+dsh --profile web --dump-config
+
+# 其他形态
+dsh --profile headless ...          # 无服务器一次性执行
+dsh --profile acp                   # 编辑器自动化（ACP）
+dsh plugin ...                      # 安装树外插件
+
+# 模型配置
+#   推荐：Web UI → Settings → Models 填 DeepSeek API Key
+#   环境变量：DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL
+#   Key 只写存于 $DSH_HOME/.credentials.yaml
+#   自定义 OpenAI 兼容供应商：settings.yaml 的 llm-pi-ai.providers</code></pre>
+  <div class="box caution"><span class="tag">安全须知（仓库明文）</span>开发者预览，<b>会有破坏性变更</b>（SAFETY.md）。Web 服务器无内置 TLS/鉴权，只绑 127.0.0.1——不要暴露到不受信网络。会话格式版本停在 0，无兼容承诺。生产使用开启沙箱/审批（packages/guard，Linux 配合 native/landlock-run）。</div>
+</section>
+
+</main>
+
+<footer>基于本地克隆 deepseek-harness（main 分支）逐包核对 · 教学结构参考 dsh.papertok.io 读书法（死法驱动 / 证据分级 / 四级提示 / 机判自测 / 单步演示）· 进度保存在浏览器本地</footer>
+</div><!-- /main-col -->
+</div><!-- /shell -->
+
+<div class="toast" id="toast">已保存</div>
+
+<script>
+/* ---------- hint ladder ---------- */
+function reveal(btn){const b=btn.nextElementSibling;b.classList.toggle('show');
+  btn.textContent=(b.classList.contains('show')?'▾ ':'💡 ')+btn.textContent.replace(/^[▾💡✅]\s*/,'');}
+
+/* ---------- 20-line loop stepper ---------- */
+const LINES=[
+'const messages = [{ role:\'user\', content: q }]',
+'const tools = { read_file }',
+'',
+'while (true) {',
+'  const reply = await callModel(messages)',
+'  messages.push(reply)',
+'',
+'  const calls = reply.blocks.filter(isToolCall)',
+'  if (calls.length === 0) break',
+'',
+'  for (const call of calls) {',
+'    const fn = tools[call.name]',
+'    const out = await fn(JSON.parse(call.arguments))',
+'    messages.push({',
+'      role: \'tool\',',
+'      toolCallId: call.id,',
+'      content: JSON.stringify(out)',
+'    })',
+'  }',
+'}'];
+const STEPS=[
+ {ln:0, msgs:[['user','帮我看看 report.txt 里写了什么']], d:'初始化：把用户的问题放进 messages。这个数组就是式 0-1 括号里那一长串。'},
+ {ln:1, msgs:[['user','帮我看看 report.txt 里写了什么']], d:'工具表：程序里只有 read_file 一个实现。模型等下能不能"调"它，取决于它在不在这张表里。'},
+ {ln:4, msgs:[['user','帮我看看 report.txt …']], d:'第 1 次请求：整段 messages 发给模型（f 只吃文字）。工具清单也一起发——它也占 token。'},
+ {ln:5, msgs:[['user','…'],['assistant','(tool-call: read_file {path:"report.txt"})']], d:'模型回了文字，里面恰好有一个 tool-call 块。注意：它只是<b>说了</b>这句话，什么都没发生。'},
+ {ln:8, msgs:[['user','…'],['assistant','(tool-call …)']], d:'程序从回复里筛出 tool-call 块——解析结构化文字，普通编程。'},
+ {ln:9, msgs:[['user','…'],['assistant','(tool-call …)']], d:'有调用，不 break，继续循环。'},
+ {ln:12, msgs:[['user','…'],['assistant','(tool-call …)']], d:'拿工具名去表里查 → 找到 read_file。如果查不到，正确做法是回一条 isError 的 tool-result，而不是崩掉。'},
+ {ln:13, msgs:[['user','…'],['assistant','(tool-call …)'],['tool-result','"第一季度营收……"']], d:'<b>第 ③ 步：真的执行。</b>读磁盘，零 AI 参与——全站唯一真正改变世界的一步。'},
+ {ln:14, msgs:[['user','…'],['assistant','(tool-call …)'],['tool-result','"第一季度营收……"']], d:'结果包成 tool-result 消息，带 toolCallId 配对，追加进 messages。'},
+ {ln:4, msgs:[['user','…'],['assistant','(tool-call …)'],['tool-result','"第一季度营收……"']], d:'第 2 次请求：整段（含工具结果）重发。这就是"循环为什么必然是循环"——每次工具执行都要以一次完整重新提问收尾。'},
+ {ln:5, msgs:[['user','…'],['assistant','(tool-call …)'],['tool-result','…'],['assistant','这个文件记录了第一季度的营收数据……']], d:'模型这次没有输出 tool-call——它认为活干完了。'},
+ {ln:9, msgs:[['user','…'],['assistant','…'],['tool-result','…'],['assistant','这个文件记录了……']], d:'calls.length === 0 → break。注意 messages 里模型只贡献了文字；执行、保存、配对全是循环外那个程序干的。'},
+];
+let cur=-1, timer=null;
+function msgsChars(ms){return ms.reduce((a,m)=>a+m[1].length+20,0)}
+function render(){
+  const s=cur<0?null:STEPS[cur];
+  const pane=document.getElementById('codePane');
+  pane.innerHTML=cur<0?LINES.join('\n'):LINES.map((l,i)=>i===s.ln?'<span class="hl">'+(l||' ')+'</span>':l).join('\n');
+  document.getElementById('stepCnt').textContent=cur<0?'第 0 / '+STEPS.length+' 步':'第 '+(cur+1)+' / '+STEPS.length+' 步';
+  document.getElementById('stepDesc').innerHTML=cur<0?'按「单步」，看这个循环一行一行走。':s.d;
+  const ml=document.getElementById('msgList');
+  ml.innerHTML=cur<0?'（空）':(s?s.msgs:[]).map(m=>'<div style="color:'+(m[0]==='assistant'?'var(--qa)':m[0]==='tool-result'?'var(--ok)':'var(--def)')+'">['+m[0]+'] '+m[1].slice(0,42)+(m[1].length>42?'…':'')+'</div>').join('');
+  document.getElementById('tokCnt').textContent=cur<0?'0':Math.ceil(msgsChars(s.msgs)/4);
+}
+function step(n){clearInterval(timer);timer=null;cur=Math.min(STEPS.length-1,Math.max(-1,cur+n));render()}
+function resetStep(){clearInterval(timer);timer=null;cur=-1;render()}
+function autoPlay(){clearInterval(timer);timer=setInterval(()=>{if(cur>=STEPS.length-1){clearInterval(timer);return}cur++;render()},900)}
+render();
+
+/* ---------- machine quiz ---------- */
+const HINTS=[
+ '想想 CHARS_PER_TOKEN 是按几个字符算一个 token。',
+ 'T(n) = c·n(n+1)/2，先算 20×21/2。',
+ '用户消息几条？模型回复要不要也带回去？',
+ '四步里只有一步真正碰到磁盘。'];
+const hintUse={};
+function grade(btn){
+  const q=btn.closest('.quiz');const v=parseFloat(q.querySelector('input').value);
+  const ans=parseFloat(q.dataset.ans),tol=parseFloat(q.dataset.tol||0);
+  const vd=q.querySelector('.verdict');vd.classList.add('show');vd.style.color='';
+  if(isNaN(v)){vd.className='verdict bad';vd.textContent='先填一个数字再提交。';return}
+  if(Math.abs(v-ans)<=tol){vd.className='verdict ok show';vd.textContent='✓ 对了。'+q.querySelector('.h2').textContent.split('。')[0]+'。'}
+  else{vd.className='verdict bad show';vd.textContent='✗ 再想想。可以开提示。'}
+}
+function quizHint(btn,i){hintUse[i]=(hintUse[i]||0)+1;btn.textContent='提示 ('+Math.min(2,hintUse[i])+'/2)';
+  if(hintUse[i]>=2){const q=btn.closest('.quiz');const vd=q.querySelector('.verdict');vd.className='verdict show';vd.style.color='var(--muted)';vd.textContent='提示：'+HINTS[i]}}
+function quizAns(btn){const q=btn.closest('.quiz');const vd=q.querySelector('.verdict');
+  vd.className='verdict show';vd.style.color='var(--ok)';vd.textContent='答案：'+q.querySelector('.h2').textContent}
+
+/* ---------- progress ---------- */
+const boxes=[...document.querySelectorAll('.done-row input')];
+function refresh(){const n=boxes.filter(b=>b.checked).length;
+  const pct=boxes.length?Math.round(n/boxes.length*100):0;
+  document.getElementById('pbarFill').style.width=pct+'%';
+  document.getElementById('pctTxt').textContent=pct+'%';
+  boxes.forEach(b=>b.closest('.done-row').classList.toggle('checked',b.checked));}
+boxes.forEach(b=>{b.checked=localStorage.getItem('dshb-'+b.dataset.key)==='1';
+  b.addEventListener('change',()=>{localStorage.setItem('dshb-'+b.dataset.key,b.checked?'1':'0');refresh();
+    const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),900);});});
+refresh();
+
+/* ---------- sidebar active ---------- */
+const links=[...document.querySelectorAll('aside.side .grp a')];
+window.addEventListener('scroll',()=>{let cur=links[0];
+  for(const l of links){const el=document.querySelector(l.getAttribute('href'));if(el&&el.getBoundingClientRect().top<160)cur=l;}
+  links.forEach(l=>l.classList.toggle('active',l===cur));},{passive:true});
+</script>
+</body>
+</html>

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学透 DeepSeek Harness — 可视化代码导读</title>
+<style>
+  :root{
+    --bg:#0b0e14; --bg2:#11151f; --card:#151b28; --card2:#1a2130;
+    --text:#dbe2f0; --muted:#8b96ab; --line:#232c3f;
+    --accent:#4f8ef7; --accent2:#7c6ff0;
+    --def:#3b82f6; --ana:#f59e0b; --mis:#ef4444; --caution:#ef4444; --lab:#10b981; --qa:#8b5cf6;
+    --code-bg:#0d1117; --ok:#10b981;
+  }
+  [data-theme="light"]{
+    --bg:#f6f7fa; --bg2:#eef0f5; --card:#ffffff; --card2:#f4f6fa;
+    --text:#1c2333; --muted:#5b657a; --line:#e2e6ee;
+    --code-bg:#f0f2f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.75;transition:background .25s,color .25s}
+  /* ---------- nav ---------- */
+  nav{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--bg) 85%, transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 28px;height:56px}
+  nav .logo{font-weight:700;font-size:16px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+  nav a{color:var(--muted);text-decoration:none;font-size:14px;padding:4px 2px;border-bottom:2px solid transparent;transition:.2s}
+  nav a:hover,nav a.active{color:var(--text);border-color:var(--accent)}
+  nav .spacer{flex:1}
+  nav .pbar{width:120px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+  nav .pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+  nav button{background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:5px 12px;cursor:pointer;font-size:13px}
+  nav button:hover{border-color:var(--accent)}
+  /* ---------- hero ---------- */
+  header.hero{padding:90px 24px 70px;text-align:center;position:relative;overflow:hidden;
+    background:radial-gradient(ellipse 60% 50% at 50% -10%, color-mix(in srgb,var(--accent) 22%,transparent), transparent),
+               radial-gradient(ellipse 40% 40% at 80% 20%, color-mix(in srgb,var(--accent2) 14%,transparent), transparent)}
+  header.hero h1{font-size:clamp(28px,4.5vw,46px);font-weight:800;letter-spacing:-.5px}
+  header.hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  header.hero p.sub{max-width:640px;margin:18px auto 0;color:var(--muted);font-size:16px}
+  .stats{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:34px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 22px;min-width:130px}
+  .stat b{font-size:22px;display:block;color:var(--accent)}
+  .stat span{font-size:12px;color:var(--muted)}
+  .paths{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:34px}
+  .paths a{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 18px;color:var(--text);text-decoration:none;font-size:14px;transition:.2s}
+  .paths a:hover{border-color:var(--accent);transform:translateY(-2px)}
+  /* ---------- layout ---------- */
+  main{max-width:960px;margin:0 auto;padding:20px 20px 100px}
+  section.chapter{margin-top:60px}
+  .ch-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .ch-num{flex:none;width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  h2.ch-title{font-size:24px;font-weight:700}
+  .ch-sub{color:var(--muted);font-size:14px;margin-left:60px}
+  .objectives{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:16px 20px;margin:18px 0 8px;font-size:14px}
+  .objectives h4{font-size:13px;color:var(--accent);margin-bottom:8px}
+  .objectives li{margin-left:20px;margin-top:4px}
+  h3.sec{font-size:18px;margin:36px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3.sec .no{color:var(--accent);margin-right:8px;font-family:ui-monospace,monospace}
+  p{margin:10px 0}
+  code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.88em;background:var(--code-bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font-size:13px;line-height:1.6;margin:14px 0}
+  pre code{background:none;border:none;padding:0}
+  /* ---------- callouts ---------- */
+  .box{border-radius:10px;padding:14px 18px;margin:16px 0;font-size:14.5px;border:1px solid var(--line);background:var(--card)}
+  .box .tag{display:inline-block;font-size:12px;font-weight:700;border-radius:5px;padding:1px 9px;margin-bottom:8px;color:#fff}
+  .box.def{border-left:3px solid var(--def)} .box.def .tag{background:var(--def)}
+  .box.ana{border-left:3px solid var(--ana)} .box.ana .tag{background:var(--ana)}
+  .box.mis{border-left:3px solid var(--mis)} .box.mis .tag{background:var(--mis)}
+  .box.caution{border-left:3px solid var(--caution);background:color-mix(in srgb,var(--caution) 7%,var(--card))} .box.caution .tag{background:var(--caution)}
+  .box.lab{border-left:3px solid var(--lab)} .box.lab .tag{background:var(--lab)}
+  .box.cross{border-left:3px solid var(--accent2)} .box.cross .tag{background:var(--accent2)}
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:var(--card2);font-weight:600}
+  /* ---------- flow diagram ---------- */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;margin:20px 0;font-size:12.5px}
+  .flow .node{background:var(--card);border:1px solid var(--accent);border-radius:8px;padding:6px 12px;white-space:nowrap}
+  .flow .node.hot{border-color:var(--mis);color:var(--mis);font-weight:600}
+  .flow .ar{color:var(--muted)}
+  /* ---------- Q&A cards ---------- */
+  .qa{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:18px 0;overflow:hidden}
+  .qa .q{padding:14px 18px;font-weight:600;display:flex;gap:10px;align-items:flex-start}
+  .qa .q .chip{flex:none;background:var(--qa);color:#fff;font-size:11px;border-radius:5px;padding:2px 8px;margin-top:3px}
+  .qa .hints{padding:0 18px 6px}
+  .hint-btn{display:block;width:100%;text-align:left;background:var(--card2);border:1px dashed var(--line);color:var(--muted);border-radius:8px;padding:8px 12px;margin:6px 0;cursor:pointer;font-size:13px;transition:.2s}
+  .hint-btn:hover{border-color:var(--qa);color:var(--text)}
+  .hint-body{display:none;padding:8px 14px;font-size:13.5px;border-left:2px solid var(--qa);margin:4px 0 8px;color:var(--text)}
+  .hint-body.show{display:block}
+  /* ---------- collapsible ---------- */
+  details{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px 0;padding:0}
+  summary{cursor:pointer;padding:12px 18px;font-weight:600;font-size:14.5px;list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+  summary::before{content:"▸";color:var(--accent);transition:transform .2s}
+  details[open] summary::before{transform:rotate(90deg)}
+  details .inner{padding:0 20px 16px;font-size:14.5px}
+  /* ---------- done checkbox ---------- */
+  .done-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 18px;margin:14px 0;font-size:14px;cursor:pointer;user-select:none}
+  .done-row input{width:18px;height:18px;accent-color:var(--ok);cursor:pointer}
+  .done-row.checked{opacity:.55;text-decoration:line-through}
+  /* ---------- architecture diagram ---------- */
+  .arch{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:20px 0}
+  .layer{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .layer h5{font-size:13px;color:var(--accent);margin-bottom:8px}
+  .layer .pill{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:2px 10px;font-size:12px;margin:2px 3px 2px 0;color:var(--muted)}
+  footer{border-top:1px solid var(--line);padding:30px;text-align:center;color:var(--muted);font-size:13px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:10px 20px;font-size:14px;transition:.3s;opacity:0;z-index:200}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  @media(max-width:640px){nav{padding:0 14px;gap:10px}nav a{font-size:13px}}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">⬡ 学透 DSH</span>
+  <a href="#home" class="active">首页</a>
+  <a href="#ch0">学习</a>
+  <a href="#review">复习</a>
+  <a href="#arch">架构图</a>
+  <span class="spacer"></span>
+  <span style="font-size:12px;color:var(--muted)">进度 <b id="pctTxt">0%</b></span>
+  <div class="pbar"><i id="pbarFill"></i></div>
+  <button id="themeBtn">🌙 深色</button>
+</nav>
+
+<header class="hero" id="home">
+  <h1>把 <em>DeepSeek Harness</em> 的 20 万行<br>变成你能复述的一张图</h1>
+  <p class="sub">一个开源的智能体运行框架（agent harness）："一切皆插件" 的架构 + Cordis 上下文系统 + 分层装配。本站基于对仓库的完整代码梳理，用章节、推导、问答和实验带你从零读懂它。</p>
+  <div class="stats">
+    <div class="stat"><b>~220</b><span>个 pnpm 子包</span></div>
+    <div class="stat"><b>~19.8 万</b><span>行代码</span></div>
+    <div class="stat"><b>0.89%</b><span>agent-loop 占比</span></div>
+    <div class="stat"><b>5</b><span>种 profile 应用</span></div>
+    <div class="stat"><b>MIT</b><span>开源协议</span></div>
+  </div>
+  <div class="paths">
+    <a href="#ch0">🚗 从零开始（第 0 章：什么是 token / 工具调用）</a>
+    <a href="#ch4">⚡ 直奔 Agent 循环与事件分发</a>
+    <a href="#arch">🧩 先看架构全景图</a>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ ARCH ============ -->
+<section class="chapter" id="arch">
+  <div class="ch-head"><div class="ch-num">🏗</div><h2 class="ch-title">架构全景：一切皆插件</h2></div>
+  <p class="ch-sub">先有地图，再进丛林。dsh 没有特权核心——模型适配器、工具注册表、会话日志、Agent 循环，全部是 Cordis 插件。</p>
+
+  <div class="arch">
+    <div class="layer"><h5>① CLI 入口层 apps/cli</h5>
+      <span class="pill">dsh web</span><span class="pill">--profile headless</span><span class="pill">--profile sdk</span><span class="pill">--profile acp</span><span class="pill">--dump-config</span><span class="pill">dsh plugin</span>
+    </div>
+    <div class="layer"><h5>② 装配层 packages/bundle · boot</h5>
+      <span class="pill">dsh-base</span><span class="pill">web-app</span><span class="pill">headless</span><span class="pill">sdk-app</span><span class="pill">cordis.patch.yml 分层叠加</span><span class="pill">HMR 热重载</span>
+    </div>
+    <div class="layer"><h5>③ 核心服务 packages/core</h5>
+      <span class="pill">ctx.sessions 会话日志</span><span class="pill">ctx.tools 工具管道</span><span class="pill">ctx.agents</span><span class="pill">agent-loop (ReactLoopAgent)</span><span class="pill">ctx.systemPrompt</span>
+    </div>
+    <div class="layer"><h5>④ 能力接缝 packages/*</h5>
+      <span class="pill">ctx.llm + 适配器</span><span class="pill">ctx.shell (bash/pwsh/沙箱)</span><span class="pill">ctx.terminals PTY</span><span class="pill">ctx.fs</span><span class="pill">lsp</span><span class="pill">web_search/fetch</span><span class="pill">mcp</span><span class="pill">skills</span><span class="pill">compaction</span>
+    </div>
+    <div class="layer"><h5>⑤ 宿主与界面 packages/host · client</h5>
+      <span class="pill">webserver (node:http)</span><span class="pill">React 18 + Vite SPA</span><span class="pill">@Remote RPC 契约（Typert 生成）</span><span class="pill">127.0.0.1:3080</span>
+    </div>
+    <div class="layer"><h5>⑥ 外围 python · native</h5>
+      <span class="pill">Python SDK (JSON-RPC/stdio)</span><span class="pill">landlock-run 沙箱</span><span class="pill">website 文档站</span>
+    </div>
+  </div>
+
+  <div class="box def"><span class="tag">定义</span>
+    <b>能力接缝（capability seam）</b>：一个服务接口 + 可替换的提供者 + 消费者（通常是模型工具）三角色结构。把 <code>ctx.fs</code>/<code>ctx.subprocess</code> 的提供者换成远程沙箱，Bash / PTY / LSP 工具会整体跟着迁移，工具代码一行不改。
+  </div>
+</section>
+
+<!-- ============ CH 0 ============ -->
+<section class="chapter" id="ch0">
+  <div class="ch-head"><div class="ch-num">0</div><h2 class="ch-title">地基：LLM、token 与工具调用</h2></div>
+  <p class="ch-sub">前置：会用 JavaScript 读代码。不需要任何 AI 背景。</p>
+  <div class="objectives"><h4>学完这一章你应该能做到</h4>
+    <ul><li>说清"LLM 是无状态函数"意味着什么</li><li>默写一次工具调用的 4 个步骤</li><li>解释为什么需要 harness 这个词</li></ul>
+  </div>
+
+  <h3 class="sec"><span class="no">0.1</span>模型是个无状态函数</h3>
+  <p>每次调用 LLM，你都把<b>完整历史</b>发过去，它返回下一段输出。它不记得上一轮——"记忆"是你（调用方）每次重放历史实现的。这就是为什么 dsh 要有一个 <code>packages/core/session</code>：一份追加式的 <code>SessionEvent</code> 日志，每轮用 <code>deriveMessages()</code> 从日志推导出消息列表。口诀：<b>模型可见即可被记录</b>。</p>
+
+  <div class="box ana"><span class="tag">打个比方</span>
+    LLM 像一个每 5 秒失忆一次的专家：你要持续请教，就必须每次把聊天记录完整打印一份递给他。<code>SessionEvent</code> 日志就是那份聊天记录的"账本"。
+    <div style="margin-top:8px;font-size:13px;color:var(--muted)">⚠ 类比失效处：真人专家会自己积累经验，而 LLM 连"上一秒说了什么"都依赖你重放——上下文窗口满了就需要 compaction（压缩）插件来裁剪历史。</div>
+  </div>
+
+  <h3 class="sec"><span class="no">0.2</span>一次工具调用的 4 步</h3>
+  <div class="flow">
+    <span class="node">① 程序把工具 schema<br>随消息发给模型</span><span class="ar">→</span>
+    <span class="node">② 模型返回结构化<br>"我要调 bash(command)"</span><span class="ar">→</span>
+    <span class="node">③ 程序真正执行命令<br>拿到真实世界的结果</span><span class="ar">→</span>
+    <span class="node">④ 结果作为 tool 消息<br>追加进历史，再次请求模型</span>
+  </div>
+  <p>把 ②→④ 套进循环，就是最小 agent。整个 dsh 的 <code>agent-loop</code> 包只占全仓库代码的 <b>0.89%</b>——剩下 99% 都是在让这个循环变得可靠、可观测、可插拔。</p>
+
+  <div class="box mis"><span class="tag">常见误解</span>
+    ❌ "是模型自己去执行了 bash 命令。" —— 模型只输出了一段<b>结构化的请求文本</b>；执行永远发生在你的程序里，这就是 harness 存在的理由。
+  </div>
+
+  <div class="box lab"><span class="tag">动手 · 20 行最小 agent</span>
+    用任何 OpenAI 兼容 API 写一个循环：发消息 + 一个 <code>echo</code> 工具 → 收到工具调用就执行 → 把结果拼回消息再发。<b>做对了的样子</b>：模型连续调用工具两次以上仍不混乱，历史完整重放。
+<pre><code>while (true) {
+  const res = await callLLM(messages, tools)      // ①②
+  if (!res.toolCalls) break                        // 没有工具调用 → 结束
+  for (const call of res.toolCalls) {
+    const result = await execute(call)             // ③
+    messages.push(toolResult(call, result))        // ④
+  }
+}</code></pre>
+  </div>
+  <div class="done-row"><input type="checkbox" data-key="ch0"><span>我跑通了一个最小 agent，并且能不看材料复述工具调用的 4 步</span></div>
+</section>
+
+<!-- ============ CH 1 ============ -->
+<section class="chapter" id="ch1">
+  <div class="ch-head"><div class="ch-num">1</div><h2 class="ch-title">裸循环的九种死法 → 一切皆插件</h2></div>
+  <p class="ch-sub">为什么 20 行的循环长成 19.8 万行的仓库。</p>
+  <div class="objectives"><h4>学完这一章你应该能做到</h4>
+    <ul><li>列举裸循环至少 5 种失败模式并对应到 dsh 的解药包</li><li>解释 "everything-is-a-plugin" 付的四笔代价</li></ul>
+  </div>
+
+  <h3 class="sec"><span class="no">1.1</span>失败模式 → 解药对照表</h3>
+  <table>
+    <tr><th>裸循环的死法</th><th>dsh 的解药</th><th>所在包</th></tr>
+    <tr><td>上下文窗口溢出</td><td>压缩 / 工具结果裁剪 / compact 命令</td><td><code>compaction/*</code></td></tr>
+    <tr><td>工具执行无审批、无沙箱</td><td>守卫管道 pre→execute→post + Landlock 沙箱</td><td><code>core/tools</code>, <code>guard</code>, <code>native/landlock-run</code></td></tr>
+    <tr><td>换模型供应商要改核心代码</td><td>LLM 适配器接缝 <code>ctx.llm.registerAdapter()</code></td><td><code>llm/llm</code> + <code>llm-deepseek</code> / <code>llm-pi-ai</code></td></tr>
+    <tr><td>长命令阻塞对话</td><td>后台任务 job_* 工具 / 持久 PTY 终端</td><td><code>jobs</code>, <code>terminal/*</code></td></tr>
+    <tr><td>同一命令反复失败</td><td>重试策略、token 计量、诊断</td><td><code>llm-retry</code>, <code>token-meter</code>, <code>runtime-diagnostics</code></td></tr>
+    <tr><td>无法接入编辑器/MCP 等生态</td><td>MCP 客户端、ACP profile、LSP</td><td><code>mcp</code>, <code>acp</code>, <code>lsp/*</code></td></tr>
+  </table>
+
+  <h3 class="sec"><span class="no">1.2</span>插件化的四笔代价</h3>
+  <p>没有特权核心意味着：① 任何行为都要跨包协作才能看懂；② 服务键命名空间是平的，需要约定；③ 分层配置叠加出错时更难定位（所以有 <code>--dump-config</code>）；④ 类型系统要靠 Host/Client 双聚合 tsconfig + 自研 Typert 反射来缝合。</p>
+  <div class="box caution"><span class="tag">读的时候要小心 · 本站推断</span>
+    "九种死法"是对失败模式的归纳表述，仓库原文并未以此命名；对应解药包是仓库明文事实。本站红框内容均为推断，证据分级见第 5 章末。
+  </div>
+  <div class="done-row"><input type="checkbox" data-key="ch1"><span>我能说出插件化的 4 笔代价，并指出哪条是本站推断</span></div>
+</section>
+
+<!-- ============ CH 2 ============ -->
+<section class="chapter" id="ch2">
+  <div class="ch-head"><div class="ch-num">2</div><h2 class="ch-title">Cordis 上下文：服务是怎么接起来的</h2></div>
+  <p class="ch-sub">packages/core/scope · 为什么是 ctx.llm 而不是 import。</p>
+  <div class="objectives"><h4>学完这一章你应该能做到</h4>
+    <ul><li>解释 inject 声明与 PENDING 状态</li><li>手写一个最小插件并挂到 ctx 上</li></ul>
+  </div>
+
+  <h3 class="sec"><span class="no">2.1</span>插件的样子</h3>
+  <p>每个包导出一个类（常继承 <code>Service</code>）或 <code>apply(ctx)</code> 函数；<code>static inject</code> 声明依赖的服务键，框架保证依赖就绪后才启动。仓库原文（<code>packages/core/agent-loop/src/index.ts:296</code>）：</p>
+<pre><code>export class AgentLoop extends Service implements AgentFactory {
+  static inject = ['agents', 'sessions', 'llm', 'tools', 'systemPrompt']
+  // create()/resume() 发布 ReactLoopAgent 句柄；卸载时效果自动回滚
+}
+export default AgentLoop</code></pre>
+
+  <div class="box def"><span class="tag">定义</span>
+    <b>ctx（Context）</b>：每个插件拿到的是一个<b>作用域化的</b>上下文（<code>packages/core/scope</code>），插件在它上面注册的服务、事件、效果都是<b>可逆的</b>——插件卸载时全部自动撤销。对比 <code>import</code>：import 是编译期强耦合且不可撤销；ctx 是运行期、按需、可拆卸的服务查找。
+  </div>
+
+  <div class="box ana"><span class="tag">打个比方</span>
+    ctx 像酒店的客房服务台：你不是把电器焊死在墙里（import），而是打电话叫（ctx.xxx）；退房（插件卸载）时，你叫过的所有服务会被自动撤掉。
+    <div style="margin-top:8px;font-size:13px;color:var(--muted)">⚠ 类比失效处：酒店服务是并发的、彼此独立；而 ctx 上的注册有顺序，卸载按<b>启动的逆序</b>进行（见第 3 章）。</div>
+  </div>
+  <div class="done-row"><input type="checkbox" data-key="ch2"><span>我能画出 插件 → inject → ctx服务键 的关系，并解释 PENDING</span></div>
+</section>
+
+<!-- ============ CH 3 ============ -->
+<section class="chapter" id="ch3">
+  <div class="ch-head"><div class="ch-num">3</div><h2 class="ch-title">可逆效果：为什么热重载是"推论"不是"功能"</h2></div>
+  <p class="ch-sub">ctx.effect() · 卸载顺序 · HMR。</p>
+  <h3 class="sec"><span class="no">3.1</span>效果即注册</h3>
+  <p>插件做的每件事（注册工具、监听事件、启动终端）都被记为一条<b>效果</b>（effect）。卸载时框架逆着启动顺序、并发地展开这些效果。因为注册天生可逆，"改了插件配置后热重载"不需要专门实现——它是可逆性的自然推论（<code>vendor/hmr</code> 只是把这个推论工程化）。</p>
+  <details><summary>自己推一遍：如果效果不可逆，HMR 会出什么事？</summary><div class="inner">
+    会出现"幽灵注册"：旧版本插件注册的工具/事件监听还挂在 ctx 上，新旧两份同时响应，行为不可预测。可逆效果保证旧作用域整体销毁后再挂新作用域。想好了再对照：你推到"重复注册"这一步就及格了。
+  </div></details>
+  <div class="done-row"><input type="checkbox" data-key="ch3"><span>我能不看材料解释"热重载是可逆效果的推论"</span></div>
+</section>
+
+<!-- ============ CH 4 ============ -->
+<section class="chapter" id="ch4">
+  <div class="ch-head"><div class="ch-num">4</div><h2 class="ch-title">Agent 循环：一轮对话的完整流水线</h2></div>
+  <p class="ch-sub">packages/core/agent-loop · ReactLoopAgent。一个 step = 一次模型请求 + 其工具调用；一个 turn = 若干 step。</p>
+  <div class="objectives"><h4>学完这一章你应该能做到</h4>
+    <ul><li>按顺序默写 turn 流水线</li><li>指出哪些是瀑布事件、为什么必须 next()</li></ul>
+  </div>
+
+  <h3 class="sec"><span class="no">4.1</span>流水线（仓库明文）</h3>
+  <div class="flow">
+    <span class="node">turn/start</span><span class="ar">→</span>
+    <span class="node">agent/pre-step 🔶</span><span class="ar">→</span>
+    <span class="node">step/start</span><span class="ar">→</span>
+    <span class="node">追加用户消息</span><span class="ar">→</span>
+    <span class="node">deriveMessages()</span><span class="ar">→</span>
+    <span class="node">agent/request 🔶</span><span class="ar">→</span>
+    <span class="node">llm/stream 🔶</span><span class="ar">→</span>
+    <span class="node">assistant/chunk*</span><span class="ar">→</span>
+    <span class="node">tool/call*</span><span class="ar">→</span>
+    <span class="node">tools/pre-execute 🔶</span><span class="ar">→</span>
+    <span class="node">tools/execute 🔶</span><span class="ar">→</span>
+    <span class="node">tools/post-execute 🔶</span><span class="ar">→</span>
+    <span class="node">tool/result</span><span class="ar">→</span>
+    <span class="node">step/end</span><span class="ar">→</span>
+    <span class="node">agent/turn-stopping 🔶</span><span class="ar">→</span>
+    <span class="node">turn/end</span>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:13px">🔶 = 瀑布（waterfall）事件：监听者包裹 <code>next()</code> 形成洋葱层，必须调用 next() 才能继续。</p>
+
+  <div class="box def"><span class="tag">定义</span>
+    <b>洋葱模型</b>：瀑布事件的每个监听者都可以在 <code>await next()</code> 之前/之后插入逻辑——之前改参数、之后改结果。审批插件在 <code>tools/pre-execute</code> 的 next() 之前拦截危险命令，压缩插件在 llm/stream 的 next() 之前裁剪消息。
+  </div>
+
+  <h3 class="sec"><span class="no">4.2</span>一个工具的完整定义</h3>
+  <p>工具用 <code>defineTool()</code>（<code>packages/core/tools/src/schema.ts:545</code>）定义，以 bash 为例（节选自 <code>packages/shell/tool-bash/src/index.ts:242</code>）：</p>
+<pre><code>ctx.tools.register(defineTool({
+  name: 'bash',
+  description: bashDescription(backgroundEnabled, escalationModes),
+  parameters: {
+    command: { type: 'string', required: true, description: 'The bash command to execute.' },
+  },
+  output: { schema: { oneOf: [...] }, render(args, value) { /* UI 呈现 */ } },
+  async execute(args, exec) { /* 走 ctx.shell 接缝，而非直接 spawn */ },
+}))</code></pre>
+  <p>注意两点：参数 schema 是类型化 DSL，编译成 JSON Schema 给模型看；<code>execute</code> 里只碰 <code>ctx.shell</code> 接缝——换成沙箱后端时工具零改动。</p>
+
+  <div class="qa"><div class="q"><span class="chip">Q1</span>为什么 <code>agent/request</code> 必须是瀑布事件，而不能是普通广播？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this,0)">💡 提示 1：方向（谁在中间？）</button><div class="hint-body">想想"修改即将发出去的消息"和"得知消息发出去了"的区别。</div>
+      <button class="hint-btn" onclick="reveal(this,1)">💡 提示 2：关键洞察</button><div class="hint-body">压缩插件需要<b>改写</b>请求内容（裁剪历史），广播事件只能旁观、不能替换载荷。</div>
+      <button class="hint-btn" onclick="reveal(this,2)">💡 提示 3：第一步</button><div class="hint-body">瀑布事件把"下一步"作为 next() 交给监听者，监听者可以换掉传给 next() 的参数。</div>
+      <button class="hint-btn" onclick="reveal(this,3)">✅ 完整答案</button><div class="hint-body">瀑布事件形成洋葱：每个监听者包裹 next()，可以在调用前修改 messages/options（压缩、注入上下文），在调用后修改流结果（脱敏、计量）。普通 emit 无法把修改传回主流程。变式：tools/execute 为什么也是瀑布？（审批拒绝 = 不调用 next()。）</div>
+    </div>
+  </div>
+  <div class="done-row"><input type="checkbox" data-key="ch4"><span>我能按序默写 turn 流水线，并标出 5 个瀑布事件</span></div>
+</section>
+
+<!-- ============ CH 5 ============ -->
+<section class="chapter" id="ch5">
+  <div class="ch-head"><div class="ch-num">5</div><h2 class="ch-title">装配：profile、bundle 与四层 patch</h2></div>
+  <p class="ch-sub">packages/bundle · boot/app-boot。插件不是硬编码的，是启动时"叠"出来的。</p>
+  <h3 class="sec"><span class="no">5.1</span>四层叠加（后写胜出）</h3>
+  <div class="flow">
+    <span class="node">① bundle 顺序<br><code>dsh-base</code> 永远第一层</span><span class="ar">→</span>
+    <span class="node">② profile 的<br>cordis.patch.yml</span><span class="ar">→</span>
+    <span class="node">③ home 级 patch<br>(~/.dsh)</span><span class="ar">→</span>
+    <span class="node">④ 命令行<br>--patch my.yml</span>
+  </div>
+  <p>同一个行 id（如 <code>llm</code>），后写的整行覆盖先写的——包括 name 和 config。所以 <code>dsh --profile web --dump-config</code> 是排障第一工具：它打印最终组合出的插件树。</p>
+  <pre><code># cordis.patch.yml 里的一"行"
+- insert:
+  - id: llm
+    name: '@deepseek-ai/dsh-llm'
+    config: { ... }</code></pre>
+
+  <h3 class="sec"><span class="no">5.2</span>五个官方 profile</h3>
+  <table>
+    <tr><th>profile</th><th>用途</th><th>形态</th></tr>
+    <tr><td><code>web</code></td><td>Web UI（React SPA + node:http）</td><td>127.0.0.1:3080</td></tr>
+    <tr><td><code>headless</code></td><td>一次性执行</td><td>无服务器</td></tr>
+    <tr><td><code>sdk</code> / <code>sdk-minimal</code></td><td>被 Python/TS SDK 当子进程驱动</td><td>stdio JSON-RPC</td></tr>
+    <tr><td><code>acp</code></td><td>编辑器自动化（Agent Client Protocol）</td><td>ACP 服务器</td></tr>
+  </table>
+
+  <div class="box cross"><span class="tag">这里有个岔路口</span>
+    <b>dsh vs. 典型"单体 harness"</b>：单体（把循环写死在核心里）上手快、心智负担小；dsh 付出分层配置与类型缝合的复杂度，换来的是：换模型零改码（适配器）、换执行环境零改码（接缝）、树外插件生态（<code>dsh plugin</code>）。项目处于开发者预览期，<b>会有破坏性变更</b>。
+  </div>
+
+  <h3 class="sec"><span class="no">5.3</span>证据分级表（本站约定）</h3>
+  <table>
+    <tr><th>等级</th><th>含义</th><th>标示</th></tr>
+    <tr><td>仓库明文</td><td>代码 / docs 原文可查</td><td>正文与代码块</td></tr>
+    <tr><td>作者设计意图</td><td>文档声明的动机</td><td>正文引用 docs/</td></tr>
+    <tr><td>本站推断</td><td>我们的归纳，仓库未如此表述</td><td>红色谨慎框</td></tr>
+  </table>
+  <div class="done-row"><input type="checkbox" data-key="ch5"><span>我能说出四层 patch 的顺序和覆盖规则，并会用 --dump-config</span></div>
+</section>
+
+<!-- ============ REVIEW ============ -->
+<section class="chapter" id="review">
+  <div class="ch-head"><div class="ch-num">🔁</div><h2 class="ch-title">复习：间隔抽认</h2></div>
+  <p class="ch-sub">每次只揭示一层提示；用了哪层提示，就说明哪层还没长进脑子里。</p>
+
+  <div class="qa"><div class="q"><span class="chip">Q1</span>模型可见的"记忆"在 dsh 里以什么形式存在？由哪个包负责？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this,0)">💡 提示 1</button><div class="hint-body">追加式、只增不改。</div>
+      <button class="hint-btn" onclick="reveal(this,1)">💡 提示 2</button><div class="hint-body">SessionEvent 日志，每轮 deriveMessages() 重放。</div>
+      <button class="hint-btn" onclick="reveal(this,2)">✅ 答案</button><div class="hint-body">packages/core/session 的追加式 SessionEvent 日志；deriveMessages() 从日志推导消息列表。口诀：模型可见即可被记录。</div>
+    </div>
+  </div>
+
+  <div class="qa"><div class="q"><span class="chip">Q2</span>接缝（seam）的三角色是什么？换掉 shell 提供者会影响哪些工具？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this,0)">💡 提示 1</button><div class="hint-body">接口、实现、使用者。</div>
+      <button class="hint-btn" onclick="reveal(this,1)">💡 提示 2</button><div class="hint-body">bash / bash-persistent / pwsh / terminal / lsp 的 execute 都只碰接缝。</div>
+      <button class="hint-btn" onclick="reveal(this,2)">✅ 答案</button><div class="hint-body">服务定义（接口）+ 提供者（实现）+ 消费者（模型工具）。把 ctx.shell / ctx.fs / ctx.subprocess 的提供者换成远程沙箱，Bash、PTY 终端、LSP 全部随之迁移，工具代码零改动。</div>
+    </div>
+  </div>
+
+  <div class="qa"><div class="q"><span class="chip">Q3</span>API Key 存在哪里？如何接一个自定义 OpenAI 兼容供应商？</div>
+    <div class="hints">
+      <button class="hint-btn" onclick="reveal(this,0)">💡 提示 1</button><div class="hint-body">只写、不回显；settings.yaml 只存引用。</div>
+      <button class="hint-btn" onclick="reveal(this,1)">💡 提示 2</button><div class="hint-body">$DSH_HOME/.credentials.yaml + llm-pi-ai.providers。</div>
+      <button class="hint-btn" onclick="reveal(this,2)">✅ 答案</button><div class="hint-body">Key 由 packages/credentials 写入 $DSH_HOME/.credentials.yaml；自定义供应商在 settings.yaml 的 llm-pi-ai.providers 下配置 baseURL、api: openai-completions、apiKeyEnv、模型列表。也可用环境变量 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL。</div>
+    </div>
+  </div>
+
+  <div class="done-row"><input type="checkbox" data-key="review"><span>三道题我都没看第 2 层提示就答出来了</span></div>
+</section>
+
+<!-- ============ USAGE ============ -->
+<section class="chapter" id="usage">
+  <div class="ch-head"><div class="ch-num">🚀</div><h2 class="ch-title">使用速查</h2></div>
+<pre><code># 最快上手（npm）
+npx @deepseek-ai/dsh web          # 打开 http://127.0.0.1:3080
+
+# 从源码
+pnpm install && pnpm run build && pnpm dsh web
+
+# 常用
+dsh --profile headless ...        # 无服务器一次性执行
+dsh --profile web --dump-config   # 打印组合后的插件树（排障第一工具）
+dsh plugin ...                    # 安装树外插件
+dsh web --no-open                 # 不自动开浏览器（SSH 场景）</code></pre>
+  <div class="box caution"><span class="tag">安全须知</span>
+    开发者预览阶段，<b>会有破坏性变更</b>（见 SAFETY.md）。Web 服务器无内置 TLS/鉴权，只绑 127.0.0.1——不要暴露到不受信网络。生产使用建议开启沙箱/审批（packages/guard，Linux 配合 Landlock）。
+  </div>
+</section>
+
+</main>
+
+<footer>
+  基于 deepseek-ai/deepseek-harness（main 分支）代码梳理生成 · 结构参考 dsh.papertok.ai 教学站式排版 · 进度保存在浏览器本地
+</footer>
+
+<div class="toast" id="toast">已保存</div>
+
+<script>
+// ---- theme ----
+const themeBtn=document.getElementById('themeBtn');
+const saved=localStorage.getItem('dsh-theme')||'dark';
+document.documentElement.dataset.theme=saved; themeBtn.textContent=saved==='dark'?'🌙 深色':'☀️ 浅色';
+themeBtn.onclick=()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';
+  document.documentElement.dataset.theme=t;localStorage.setItem('dsh-theme',t);
+  themeBtn.textContent=t==='dark'?'🌙 深色':'☀️ 浅色';};
+// ---- hint reveal ----
+function reveal(btn){const body=btn.nextElementSibling;body.classList.toggle('show');
+  btn.textContent=(body.classList.contains('show')?'▾ ':'💡 ')+btn.textContent.replace(/^[▾💡]\s*/,'');}
+// ---- progress ----
+const boxes=[...document.querySelectorAll('.done-row input')];
+function refresh(){const n=boxes.filter(b=>b.checked).length;
+  const pct=boxes.length?Math.round(n/boxes.length*100):0;
+  document.getElementById('pbarFill').style.width=pct+'%';
+  document.getElementById('pctTxt').textContent=pct+'%';
+  boxes.forEach(b=>b.closest('.done-row').classList.toggle('checked',b.checked));}
+boxes.forEach(b=>{b.checked=localStorage.getItem('dsh-'+b.dataset.key)==='1';
+  b.addEventListener('change',()=>{localStorage.setItem('dsh-'+b.dataset.key,b.checked?'1':'0');
+    refresh();const t=document.getElementById('toast');t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),900);});});
+refresh();
+// ---- nav active ----
+const links=[...document.querySelectorAll('nav a')];
+window.addEventListener('scroll',()=>{let cur=links[0];
+  for(const l of links){const el=document.querySelector(l.getAttribute('href'));if(el&&el.getBoundingClientRect().top<200)cur=l;}
+  links.forEach(l=>l.classList.toggle('active',l===cur));},{passive:true});
+</script>
+</body>
+</html>
